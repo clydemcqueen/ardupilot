@@ -1524,8 +1524,9 @@ void GPS::update()
 
     last_update = now_ms;
 
-        d.latitude = latitude;
-        d.longitude = longitude;
+        // Clyde: hack in some noise
+        d.latitude = latitude + rand_float() / 50000.0;
+        d.longitude = longitude + rand_float() / 50000.0;
         d.yaw_deg = _sitl->state.yawDeg;
         d.roll_deg = _sitl->state.rollDeg;
         d.pitch_deg = _sitl->state.pitchDeg;
