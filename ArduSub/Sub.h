@@ -187,6 +187,7 @@ private:
 
     TerrainKF *terrain_kf = nullptr;
 
+#if 0
     class SurfaceTracking {
     public:
         // pilot can enable or disable tracking
@@ -214,6 +215,7 @@ private:
         bool enabled = false;                 // true if pilot enabled surface tracking
         float target_rangefinder_cm = -1;     // target distance to seafloor
     } surface_tracking;
+#endif
 #endif
 
 #if AP_RPM_ENABLED
@@ -657,10 +659,8 @@ public:
     uint8_t get_and_clear_button_count(uint8_t index);
 
 #if RANGEFINDER_ENABLED == ENABLED
-    bool has_target_rangefinder() const WARN_IF_UNUSED { return surface_tracking.has_target_rangefinder(); }
-    float get_target_rangefinder_cm() const WARN_IF_UNUSED { return surface_tracking.get_target_rangefinder_cm(); }
-    void set_target_rangefinder_cm(float new_target_cm) { surface_tracking.set_target_rangefinder_cm(new_target_cm); }
-    void apply_delta_cm_or_reset(float delta_cm) { surface_tracking.apply_delta_cm_or_reset(delta_cm); }
+    float get_target_rangefinder_cm() const WARN_IF_UNUSED { return mode_rnghold.get_target_rangefinder_cm(); }
+    void set_target_rangefinder_cm(float new_target_cm) { mode_rnghold.set_target_rangefinder_cm(new_target_cm); }
 #endif // RANGEFINDER_ENABLED
 #endif // AP_SCRIPTING_ENABLED
 };

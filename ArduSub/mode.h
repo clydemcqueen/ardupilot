@@ -282,9 +282,18 @@ public:
     // constructor
     ModeRnghold();
 
-    virtual void run() override;
+    void run() override;
 
     bool init(bool ignore_checks) override;
+
+    // is the target set?
+    bool has_target_rangefinder() const WARN_IF_UNUSED { return target_rangefinder_cm > 0; }
+
+    // get target rangefinder
+    float get_target_rangefinder_cm() const WARN_IF_UNUSED { return target_rangefinder_cm; }
+
+    // set target rangefinder
+    void set_target_rangefinder_cm(float new_target_cm);
 
 protected:
 
@@ -293,7 +302,18 @@ protected:
 
 private:
 
+    void reset();
+
     void control_range();
+
+    // change the target by delta_cm if possible, otherwise reset the controller
+    void apply_delta_cm_or_reset(float delta_cm);
+
+    // track seafloor, call from main control loop
+    void update_surface_offset();
+
+    // target distance to seafloor
+    float target_rangefinder_cm = -1;
 
     // monitor depth delta while pilot is in control, and apply the delta to the rangefinder target
     bool pilot_in_control;

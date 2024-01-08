@@ -1,5 +1,6 @@
 #include "Sub.h"
 
+#if 0
 #if RANGEFINDER_ENABLED == ENABLED
 
 /*
@@ -115,4 +116,5 @@ void Sub::SurfaceTracking::update_surface_offset()
     }
 }
 
+#endif
 #endif
