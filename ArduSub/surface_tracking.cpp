@@ -49,6 +49,8 @@ void Sub::SurfaceTracking::enable(bool _enabled)
 void Sub::SurfaceTracking::reset()
 {
     target_rangefinder_cm = -1;
+    sub.pos_control.set_pos_offset_z_cm(0);
+    sub.pos_control.set_pos_offset_target_z_cm(0);
 }
 
 void Sub::SurfaceTracking::set_target_rangefinder_cm(float new_target_cm)
@@ -92,15 +94,20 @@ void Sub::SurfaceTracking::update_surface_offset()
                 set_target_rangefinder_cm(sub.rangefinder_state.inertial_alt_cm - rangefinder_terrain_offset_cm);
             }
 
-            // Will the new offset target cause the sub to ascend above SURFTRAK_DEPTH?
-            float desired_z_cm = rangefinder_terrain_offset_cm + target_rangefinder_cm;
-            if (desired_z_cm >= sub.g.surftrak_depth) {
-                // adjust the offset target to stay below SURFTRAK_DEPTH
-                rangefinder_terrain_offset_cm += sub.g.surftrak_depth - desired_z_cm;
-            }
+            if (has_target_rangefinder()) {
+                // Will the new offset target cause the sub to ascend above SURFTRAK_DEPTH?
+                float desired_z_cm = rangefinder_terrain_offset_cm + target_rangefinder_cm;
+                if (desired_z_cm >= sub.g.surftrak_depth) {
+                    // adjust the offset target to stay below SURFTRAK_DEPTH
+                    rangefinder_terrain_offset_cm += sub.g.surftrak_depth - desired_z_cm;
+                }
 
-            // Set the offset target, AC_PosControl will do the rest
-            sub.pos_control.set_pos_offset_target_z_cm(rangefinder_terrain_offset_cm);
+                // Set the offset target, AC_PosControl will do the rest
+                sub.pos_control.set_pos_offset_target_z_cm(rangefinder_terrain_offset_cm);
+            } else {
+                sub.pos_control.set_pos_offset_z_cm(0);
+                sub.pos_control.set_pos_offset_target_z_cm(0);
+            }
         }
     } else {
         sub.pos_control.set_pos_offset_z_cm(0);
