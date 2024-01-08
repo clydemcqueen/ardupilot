@@ -75,7 +75,7 @@
 #endif
 
 #ifndef RANGEFINDER_TILT_CORRECTION         // by disable tilt correction for use of range finder data by EKF
-# define RANGEFINDER_TILT_CORRECTION ENABLED
+# define RANGEFINDER_TILT_CORRECTION DISABLED
 #endif
 
 // Avoidance (relies on Proximity and Fence)
