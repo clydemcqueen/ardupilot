@@ -71,16 +71,6 @@ const AP_Param::Info Sub::var_info[] = {
     // @Bitmask: 0:Roll,1:Pitch,2:Yaw
     GSCALAR(gcs_pid_mask,           "GCS_PID_MASK",     0),
 
-#if RANGEFINDER_ENABLED == ENABLED
-    // @Param: RNGFND_GAIN
-    // @DisplayName: Rangefinder gain
-    // @Description: Used to adjust the speed with which the target altitude is changed when objects are sensed below the sub
-    // @Range: 0.01 2.0
-    // @Increment: 0.01
-    // @User: Standard
-    GSCALAR(rangefinder_gain,     "RNGFND_GAIN",           RANGEFINDER_GAIN_DEFAULT),
-#endif
-
     // @Param: FS_GCS_ENABLE
     // @DisplayName: Ground Station Failsafe Enable
     // @Description: Controls what action to take when GCS heartbeat is lost.
@@ -583,6 +573,45 @@ const AP_Param::Info Sub::var_info[] = {
     // @Group: RNGFND
     // @Path: ../libraries/AP_RangeFinder/AP_RangeFinder.cpp
     GOBJECT(rangefinder,   "RNGFND", RangeFinder),
+
+    // @Param: SURFTRAK_DEPTH
+    // @DisplayName: Surface tracking minimum depth
+    // @Description: Minimum depth to engage surface tracking (RNG_HOLD mode)
+    // @Units: cm
+    // @User: Standard
+    GSCALAR(surftrak_depth, "SURFTRAK_DEPTH", SURFTRAK_DEPTH_DEFAULT),
+
+#if SURFTRAK_EXPERIMENTS == ENABLED
+    // @Param: SURFTRAK_Q_NSE
+    // @DisplayName: Terrain estimator process noise
+    // @Description: Terrain estimator process noise, roughly corresponds to surface variation
+    // @Units: m
+    // @Range: 0.01 10.0
+    // @User: Advanced
+    GSCALAR(surftrak_proc_nse, "SURFTRAK_Q_NSE", 1.0),
+
+    // @Param: SURFTRAK_R_NSE
+    // @DisplayName: Terrain estimator measurement noise
+    // @Description: Terrain estimator measurement noise
+    // @Units: m
+    // @Range: 0.01 2.0
+    // @User: Advanced
+    GSCALAR(surftrak_meas_nse, "SURFTRAK_R_NSE",  0.1),
+
+    // @Param: SURFTRAK_DELAY
+    // @DisplayName: Surftrak sensor delay
+    // @Description: Surftrak sensor delay
+    // @Units: s
+    // @Range: 0.0 1.0
+    // @User: Advanced
+    GSCALAR(surftrak_delay, "SURFTRAK_DELAY",  0.0),
+
+    // @Param: SURFTRAK_CALC
+    // @DisplayName: Surftrak calc type
+    // @Description: Surftrak calc type, see sensors.cpp
+    // @User: Advanced
+    GSCALAR(surftrak_calc, "SURFTRAK_CALC",  0),
+#endif
 #endif
 
 #if AP_TERRAIN_AVAILABLE

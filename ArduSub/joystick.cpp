@@ -181,6 +181,11 @@ void Sub::handle_jsbutton_press(uint8_t _button, bool shift, bool held)
     case JSButton::button_function_t::k_mode_poshold:
         set_mode(Mode::Number::POSHOLD, ModeReason::RC_COMMAND);
         break;
+#if RANGEFINDER_ENABLED == ENABLED
+    case JSButton::button_function_t::k_mode_range_hold:
+        set_mode(Mode::Number::RNG_HOLD, ModeReason::RC_COMMAND);
+        break;
+#endif
 
     case JSButton::button_function_t::k_mount_center:
 #if HAL_MOUNT_ENABLED

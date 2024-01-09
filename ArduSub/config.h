@@ -46,24 +46,31 @@
 // Rangefinder
 //
 
+// For surftrak testing, remove from final code
+#define SURFTRAK_EXPERIMENTS ENABLED
+
 #ifndef RANGEFINDER_ENABLED
 # define RANGEFINDER_ENABLED ENABLED
 #endif
 
 #ifndef RANGEFINDER_HEALTH_MAX
-# define RANGEFINDER_HEALTH_MAX 3          // number of good reads that indicates a healthy rangefinder
+# define RANGEFINDER_HEALTH_MAX 3           // number of good reads that indicates a healthy rangefinder
 #endif
 
-#ifndef RANGEFINDER_GAIN_DEFAULT
-# define RANGEFINDER_GAIN_DEFAULT 0.8f     // gain for controlling how quickly rangefinder range adjusts target altitude (lower means slower reaction)
+#ifndef RANGEFINDER_SIGNAL_CUTOFF
+# define RANGEFINDER_SIGNAL_CUTOFF 90       // rangefinder readings with signal quality below this value are ignored
+#endif
+
+#ifndef SURFTRAK_DEPTH_DEFAULT
+# define SURFTRAK_DEPTH_DEFAULT -50.0f      // surface tracking will keep the sub below -50cm if possible
 #endif
 
 #ifndef THR_SURFACE_TRACKING_VELZ_MAX
-# define THR_SURFACE_TRACKING_VELZ_MAX 150 // max vertical speed change while surface tracking with rangefinder
+# define THR_SURFACE_TRACKING_VELZ_MAX 150  // max vertical speed change while surface tracking with rangefinder
 #endif
 
 #ifndef RANGEFINDER_TIMEOUT_MS
-# define RANGEFINDER_TIMEOUT_MS  1000      // desired rangefinder alt will reset to current rangefinder alt after this many milliseconds without a good rangefinder alt
+# define RANGEFINDER_TIMEOUT_MS  1000       // desired rangefinder alt will reset to current rangefinder alt after this many milliseconds without a good rangefinder alt
 #endif
 
 #ifndef RANGEFINDER_WPNAV_FILT_HZ
@@ -71,7 +78,7 @@
 #endif
 
 #ifndef RANGEFINDER_TILT_CORRECTION         // by disable tilt correction for use of range finder data by EKF
-# define RANGEFINDER_TILT_CORRECTION ENABLED
+# define RANGEFINDER_TILT_CORRECTION DISABLED
 #endif
 
 // Avoidance (relies on Proximity and Fence)

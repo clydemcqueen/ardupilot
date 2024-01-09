@@ -11,9 +11,7 @@ import time
 
 from pymavlink import mavutil
 
-from common import AutoTest
-from common import NotAchievedException
-from common import AutoTestTimeoutException
+from common import AutoTest, NotAchievedException, AutoTestTimeoutException, PreconditionFailedException
 
 if sys.version_info[0] < 3:
     ConnectionResetError = AutoTestTimeoutException
@@ -114,7 +112,7 @@ class AutoTestSub(AutoTest):
             raise NotAchievedException("Did not get GLOBAL_POSITION_INT")
         pwm = 1300
         if msg.relative_alt/1000.0 < -6.0:
-            # need to g`o up, not down!
+            # need to go up, not down!
             pwm = 1700
         self.set_rc(Joystick.Throttle, pwm)
         self.wait_altitude(altitude_min=-6, altitude_max=-5)
@@ -166,8 +164,70 @@ class AutoTestSub(AutoTest):
         self.watch_altitude_maintained()
         self.disarm_vehicle()
 
+    def watch_distance_maintained(self, delta=0.3, timeout=5.0):
+        """Watch and wait for the rangefinder reading to be maintained"""
+        tstart = self.get_sim_time_cached()
+        previous_distance = self.mav.recv_match(type='RANGEFINDER', blocking=True).distance
+        self.progress('Distance to be watched: %f' % previous_distance)
+        while True:
+            m = self.mav.recv_match(type='RANGEFINDER', blocking=True)
+            if self.get_sim_time_cached() - tstart > timeout:
+                self.progress('Distance hold done: %f' % previous_distance)
+                return
+            if abs(m.distance - previous_distance) > delta:
+                raise NotAchievedException(
+                    "Distance not maintained: want %.2f (+/- %.2f) got=%.2f" %
+                    (previous_distance, delta, m.distance))
+
+    def RangeHold(self):
+        """Test RNG_HOLD mode"""
+
+        if self.get_parameter('RNGFND1_MAX_CM') != 3000.0:
+            raise PreconditionFailedException("RNGFND1_MAX_CM is not %g" % 3000.0)
+
+        # Something closer to Bar30 noise
+        self.context_push()
+        self.set_parameter("SIM_BARO_RND", 0.01)
+
+        self.wait_ready_to_arm()
+        self.arm_vehicle()
+        self.change_mode('MANUAL')
+
+        # Dive to -5m, outside of rangefinder range, will act like ALT_HOLD
+        pwm = 1300 if self.get_altitude(relative=True) > -6 else 1700
+        self.set_rc(Joystick.Throttle, pwm)
+        self.wait_altitude(altitude_min=-6, altitude_max=-5, relative=False, timeout=60)
+        self.set_rc(Joystick.Throttle, 1500)
+        self.delay_sim_time(1)
+        self.context_collect('STATUSTEXT')
+        self.change_mode(21)
+        self.wait_statustext('waiting for a rangefinder reading', check_context=True)
+        self.context_clear_collection("STATUSTEXT")
+        self.watch_altitude_maintained()
+
+        # Move into range, should set a target and maintain it
+        self.set_rc(Joystick.Throttle, 1300)
+        self.wait_altitude(altitude_min=-26, altitude_max=-25, relative=False, timeout=60)
+        self.set_rc(Joystick.Throttle, 1500)
+        self.delay_sim_time(3)
+        self.wait_statustext('rangefinder target is', check_context=True)
+        self.context_clear_collection("STATUSTEXT")
+        self.watch_distance_maintained()
+
+        # Move a few meters, should apply a delta and maintain the new target
+        self.set_rc(Joystick.Throttle, 1300)
+        self.wait_altitude(altitude_min=-31, altitude_max=-30, relative=False, timeout=60)
+        self.set_rc(Joystick.Throttle, 1500)
+        self.delay_sim_time(3)
+        self.wait_statustext('rangefinder target is', check_context=True)
+        self.context_clear_collection("STATUSTEXT")
+        self.watch_distance_maintained()
+
+        self.disarm_vehicle()
+        self.context_pop()
+
     def ModeChanges(self, delta=0.2):
-        """Check if alternating between ALTHOLD, STABILIZE and POSHOLD affects altitude"""
+        """Check if alternating between ALTHOLD, STABILIZE, POSHOLD and RNG_HOLD (mode 21) affects altitude"""
         self.wait_ready_to_arm()
         self.arm_vehicle()
         # zero buoyancy and no baro noise
@@ -187,11 +247,15 @@ class AutoTestSub(AutoTest):
         self.delay_sim_time(2)
         self.change_mode('STABILIZE')
         self.delay_sim_time(2)
+        self.change_mode(21)
+        self.delay_sim_time(2)
         self.change_mode('ALT_HOLD')
         self.delay_sim_time(2)
         self.change_mode('STABILIZE')
         self.delay_sim_time(2)
         self.change_mode('ALT_HOLD')
+        self.delay_sim_time(2)
+        self.change_mode(21)
         self.delay_sim_time(2)
         self.change_mode('MANUAL')
         self.disarm_vehicle()
@@ -523,6 +587,7 @@ class AutoTestSub(AutoTest):
         ret.extend([
             self.DiveManual,
             self.AltitudeHold,
+            self.RangeHold,
             self.PositionHold,
             self.ModeChanges,
             self.DiveMission,
