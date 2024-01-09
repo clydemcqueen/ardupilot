@@ -97,7 +97,7 @@ void Sub::read_rangefinder()
                            AP_HAL::micros64(),
 
                            // Rangefinder state
-                           (double)mode_rnghold.get_target_rangefinder_cm(),        // RF target
+                           (double)mode_rnghold.get_rangefinder_target_cm(),        // RF target
                            rangefinder_state.alt_cm,                                // RF reading
                            (double)rangefinder_state.inertial_alt_cm,               // Inertial alt at time of reading
 

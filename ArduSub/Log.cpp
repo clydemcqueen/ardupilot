@@ -42,7 +42,7 @@ void Sub::Log_Write_Control_Tuning()
         inav_alt            : inertial_nav.get_position_z_up_cm() * 0.01f,
         baro_alt            : barometer.get_altitude(),
 #if RANGEFINDER_ENABLED == ENABLED
-        desired_rangefinder_alt   : (int16_t)mode_rnghold.get_target_rangefinder_cm(),
+        desired_rangefinder_alt   : (int16_t)mode_rnghold.get_rangefinder_target_cm(),
 #else
         desired_rangefinder_alt   : 0,
 #endif

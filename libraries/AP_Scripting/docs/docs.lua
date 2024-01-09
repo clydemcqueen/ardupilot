@@ -1562,12 +1562,12 @@ function sub:rangefinder_alt_ok() end
 
 -- RNG_HOLD mode: return the rangefinder target in cm
 ---@return float
-function sub:get_target_rangefinder_cm() end
+function sub:get_rangefinder_target_cm() end
 
 -- RNG_HOLD mode: set the rangefinder target in cm, return true if successful
 ---@param new_target_cm float
 ---@return boolean
-function sub:set_target_rangefinder_cm(new_target_cm) end
+function sub:set_rangefinder_target_cm(new_target_cm) end
 
 
 -- desc

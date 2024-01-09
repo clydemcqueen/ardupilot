@@ -286,8 +286,8 @@ public:
 
     bool init(bool ignore_checks) override;
 
-    float get_target_rangefinder_cm() const WARN_IF_UNUSED { return target_rangefinder_cm; }
-    bool set_target_rangefinder_cm(float target_cm);
+    float get_rangefinder_target_cm() const WARN_IF_UNUSED { return rangefinder_target_cm; }
+    bool set_rangefinder_target_cm(float target_cm);
 
 protected:
 
@@ -300,7 +300,7 @@ private:
     void control_range();
     void update_surface_offset();
 
-    float target_rangefinder_cm;
+    float rangefinder_target_cm;
 
     bool pilot_in_control;            // pilot is moving up/down
     float pilot_control_start_z_cm;   // alt when pilot took control

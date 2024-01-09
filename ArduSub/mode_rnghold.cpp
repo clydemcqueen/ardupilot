@@ -24,10 +24,10 @@
  */
 
 #define INVALID_TARGET (-1)
-#define HAS_VALID_TARGET (target_rangefinder_cm > 0)
+#define HAS_VALID_TARGET (rangefinder_target_cm > 0)
 
 ModeRnghold::ModeRnghold() :
-        target_rangefinder_cm(INVALID_TARGET),
+        rangefinder_target_cm(INVALID_TARGET),
         pilot_in_control(false),
         pilot_control_start_z_cm(0)
 { }
@@ -60,7 +60,7 @@ void ModeRnghold::run()
 /*
  * Set the rangefinder target, return true if successful
  */
-bool ModeRnghold::set_target_rangefinder_cm(float target_cm)
+bool ModeRnghold::set_rangefinder_target_cm(float target_cm)
 {
     bool success = false;
 
@@ -77,11 +77,11 @@ bool ModeRnghold::set_target_rangefinder_cm(float target_cm)
     }
 
     if (success) {
-        target_rangefinder_cm = target_cm;
-        sub.gcs().send_text(MAV_SEVERITY_INFO, "rangefinder target is %g meters", target_rangefinder_cm * 0.01f);
+        rangefinder_target_cm = target_cm;
+        sub.gcs().send_text(MAV_SEVERITY_INFO, "rangefinder target is %g meters", rangefinder_target_cm * 0.01f);
 
         // Initialize the terrain offset
-        auto terrain_offset_cm = sub.inertial_nav.get_position_z_up_cm() - target_rangefinder_cm;
+        auto terrain_offset_cm = sub.inertial_nav.get_position_z_up_cm() - rangefinder_target_cm;
         sub.pos_control.set_pos_offset_z_cm(terrain_offset_cm);
         sub.pos_control.set_pos_offset_target_z_cm(terrain_offset_cm);
 
@@ -94,7 +94,7 @@ bool ModeRnghold::set_target_rangefinder_cm(float target_cm)
 
 void ModeRnghold::reset()
 {
-    target_rangefinder_cm = INVALID_TARGET;
+    rangefinder_target_cm = INVALID_TARGET;
 
     // Reset the terrain offset
     sub.pos_control.set_pos_offset_z_cm(0);
@@ -112,7 +112,7 @@ void ModeRnghold::control_range() {
     if (fabsf(target_climb_rate_cm_s) < 0.05f)  {
         if (pilot_in_control) {
             // Pilot has released control; apply the delta to the target rangefinder
-            set_target_rangefinder_cm(target_rangefinder_cm + inertial_nav.get_position_z_up_cm() - pilot_control_start_z_cm);
+            set_rangefinder_target_cm(rangefinder_target_cm + inertial_nav.get_position_z_up_cm() - pilot_control_start_z_cm);
             pilot_in_control = false;
         }
         if (sub.ap.at_surface) {
@@ -151,12 +151,12 @@ void ModeRnghold::update_surface_offset()
 
         // Handle the first reading or a reset
         if (!HAS_VALID_TARGET && sub.rangefinder_state.inertial_alt_cm < sub.g.surftrak_depth) {
-            set_target_rangefinder_cm(sub.rangefinder_state.inertial_alt_cm - rangefinder_terrain_offset_cm);
+            set_rangefinder_target_cm(sub.rangefinder_state.inertial_alt_cm - rangefinder_terrain_offset_cm);
         }
 
         if (HAS_VALID_TARGET) {
             // Will the new offset target cause the sub to ascend above SURFTRAK_DEPTH?
-            float desired_z_cm = rangefinder_terrain_offset_cm + target_rangefinder_cm;
+            float desired_z_cm = rangefinder_terrain_offset_cm + rangefinder_target_cm;
             if (desired_z_cm >= sub.g.surftrak_depth) {
                 // Adjust the terrain offset to stay below SURFTRAK_DEPTH, this should avoid "at_surface" events
                 rangefinder_terrain_offset_cm += sub.g.surftrak_depth - desired_z_cm;
