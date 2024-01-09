@@ -21,8 +21,10 @@ void Sub::init_rangefinder()
     rangefinder.set_log_rfnd_bit(MASK_LOG_CTUN);
     rangefinder.init(ROTATION_PITCH_270);
     rangefinder_state.alt_cm_filt.set_cutoff_frequency(RANGEFINDER_WPNAV_FILT_HZ);
-    terrain_kf = new TerrainKF(g.surftrak_proc_nse, g.surftrak_meas_nse);
     rangefinder_state.enabled = rangefinder.has_orientation(ROTATION_PITCH_270);
+#if SURFTRAK_EXPERIMENTS == ENABLED
+    terrain_kf = new TerrainKF(g.surftrak_proc_nse, g.surftrak_meas_nse);
+#endif
 #endif
 }
 
@@ -54,21 +56,28 @@ void Sub::read_rangefinder()
 
     // Calculate and use rangefinder_state.rangefinder_terrain_offset_cm
     if (rangefinder_state.alt_healthy) {
+#if SURFTRAK_EXPERIMENTS == ENABLED
         float rangefinder_terrain_offset_cm = sub.rangefinder_state.inertial_alt_cm - (float)sub.rangefinder_state.alt_cm;
+#endif
 
         uint32_t now = AP_HAL::millis();
         if (now - rangefinder_state.last_healthy_ms > RANGEFINDER_TIMEOUT_MS) {
             // Reset filter if we haven't used it within the last second
             rangefinder_state.alt_cm_filt.reset(rangefinder_state.alt_cm);
+#if SURFTRAK_EXPERIMENTS == ENABLED
             terrain_kf->reset(rangefinder_terrain_offset_cm);
+#endif
         } else {
             // Update filter
             rangefinder_state.alt_cm_filt.apply(rangefinder_state.alt_cm, 0.05f);
+#if SURFTRAK_EXPERIMENTS == ENABLED
             terrain_kf->predict(0.05f);
             terrain_kf->update(rangefinder_terrain_offset_cm);
+#endif
         }
         rangefinder_state.last_healthy_ms = now;
 
+#if SURFTRAK_EXPERIMENTS == ENABLED
         // Project filter forward
         Vector3f projected_state  = terrain_kf->project(sub.g.surftrak_delay);
 
@@ -115,6 +124,10 @@ void Sub::read_rangefinder()
                            // Position control managed by controllers
                            (double)rangefinder_state.rangefinder_terrain_offset_cm, // PSC offset target
                            (double)pos_control.get_pos_offset_z_cm());              // PSC offset
+#else
+        rangefinder_state.rangefinder_terrain_offset_cm =
+                sub.rangefinder_state.inertial_alt_cm - sub.rangefinder_state.alt_cm_filt.get();
+#endif
     }
 
     // Send rangefinder information to wp_nav and circle_nav controllers

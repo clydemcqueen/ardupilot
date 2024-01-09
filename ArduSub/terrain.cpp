@@ -27,7 +27,7 @@ void Sub::terrain_logging()
 #endif
 }
 
-#if RANGEFINDER_ENABLED == ENABLED
+#if SURFTRAK_EXPERIMENTS == ENABLED
 Sub::TerrainKF::TerrainKF(float _measurement_nse, float _process_nse) :
         process_nse(_process_nse),
         measurement_nse(_measurement_nse),
@@ -69,4 +69,4 @@ Vector3f Sub::TerrainKF::project(float dt) const
     Matrix3f F(1, dt, 0.5f * dt * dt, 0, 1, dt, 0, 0, 1);
     return F * x;
 }
-#endif  // RANGEFINDER_ENABLED
+#endif  // SURFTRAK_EXPERIMENTS

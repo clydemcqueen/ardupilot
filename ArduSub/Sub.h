@@ -163,7 +163,7 @@ private:
         LowPassFilterFloat alt_cm_filt;         // altitude filter
     } rangefinder_state = { false, false, 0, 0, 0, 0, 0, 0 };
 
-#if RANGEFINDER_ENABLED == ENABLED
+#if SURFTRAK_EXPERIMENTS == ENABLED
     // Estimate the ground position using a Kalman filter
     class TerrainKF {
     public:

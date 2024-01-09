@@ -581,6 +581,7 @@ const AP_Param::Info Sub::var_info[] = {
     // @User: Standard
     GSCALAR(surftrak_depth, "SURFTRAK_DEPTH", SURFTRAK_DEPTH_DEFAULT),
 
+#if SURFTRAK_EXPERIMENTS == ENABLED
     // @Param: SURFTRAK_Q_NSE
     // @DisplayName: Terrain estimator process noise
     // @Description: Terrain estimator process noise, roughly corresponds to surface variation
@@ -605,11 +606,12 @@ const AP_Param::Info Sub::var_info[] = {
     // @User: Advanced
     GSCALAR(surftrak_delay, "SURFTRAK_DELAY",  0.0),
 
-        // @Param: SURFTRAK_CALC
+    // @Param: SURFTRAK_CALC
     // @DisplayName: Surftrak calc type
     // @Description: Surftrak calc type, see sensors.cpp
     // @User: Advanced
     GSCALAR(surftrak_calc, "SURFTRAK_CALC",  0),
+#endif
 #endif
 
 #if AP_TERRAIN_AVAILABLE

@@ -46,6 +46,9 @@
 // Rangefinder
 //
 
+// For surftrak testing, remove from final code
+#define SURFTRAK_EXPERIMENTS ENABLED
+
 #ifndef RANGEFINDER_ENABLED
 # define RANGEFINDER_ENABLED ENABLED
 #endif

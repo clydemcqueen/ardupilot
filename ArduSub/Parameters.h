@@ -218,10 +218,12 @@ public:
         k_param_lights_steps,
         k_param_pilot_speed_dn,
         k_param_surftrak_depth,
+#if SURFTRAK_EXPERIMENTS == ENABLED
         k_param_surftrak_proc_nse,
         k_param_surftrak_meas_nse,
         k_param_surftrak_delay,
         k_param_surftrak_calc,
+#endif
 
         k_param_vehicle = 257, // vehicle common block of parameters
     };
