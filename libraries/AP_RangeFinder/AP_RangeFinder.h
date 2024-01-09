@@ -189,6 +189,7 @@ public:
     uint8_t range_valid_count_orient(enum Rotation orientation) const;
     const Vector3f &get_pos_offset_orient(enum Rotation orientation) const;
     uint32_t last_reading_ms(enum Rotation orientation) const;
+    int8_t signal_quality_pct(enum Rotation orientation) const;
 
     // get temperature reading in C.  returns true on success and populates temp argument
     bool get_temp(enum Rotation orientation, float &temp) const;

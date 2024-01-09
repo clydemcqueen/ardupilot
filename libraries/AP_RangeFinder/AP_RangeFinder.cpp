@@ -740,6 +740,17 @@ MAV_DISTANCE_SENSOR RangeFinder::get_mav_distance_sensor_type_orient(enum Rotati
     return backend->get_mav_distance_sensor_type();
 }
 
+int8_t RangeFinder::signal_quality_pct(enum Rotation orientation) const
+{
+    AP_RangeFinder_Backend *backend = find_instance(orientation);
+    int8_t signal_quality;
+    if (backend != nullptr && backend->get_signal_quality_pct(signal_quality)) {
+        return signal_quality;
+    } else {
+        return -1;
+    }
+}
+
 // get temperature reading in C.  returns true on success and populates temp argument
 bool RangeFinder::get_temp(enum Rotation orientation, float &temp) const
 {
