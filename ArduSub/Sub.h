@@ -115,6 +115,7 @@ public:
     friend class ModeStabilize;
     friend class ModeAcro;
     friend class ModeAlthold;
+    friend class ModeRnghold;
     friend class ModeGuided;
     friend class ModePoshold;
     friend class ModeAuto;
@@ -153,9 +154,38 @@ private:
         bool enabled:1;
         bool alt_healthy:1; // true if we can trust the altitude from the rangefinder
         int16_t alt_cm;     // tilt compensated altitude (in cm) from rangefinder
+        int16_t min_cm;     // min rangefinder distance (in cm)
+        int16_t max_cm;     // max rangefinder distance (in cm)
         uint32_t last_healthy_ms;
-        LowPassFilterFloat alt_cm_filt; // altitude filter
-    } rangefinder_state = { false, false, 0, 0 };
+        float inertial_alt_cm;                  // inertial alt at time of last rangefinder sample
+        float rangefinder_terrain_offset_cm;    // terrain height above EKF origin
+        LowPassFilterFloat alt_cm_filt;         // altitude filter
+    } rangefinder_state = { false, false, 0, 0, 0, 0, 0, 0 };
+
+#if SURFTRAK_EXPERIMENTS == ENABLED
+    // Estimate the ground position using a Kalman filter
+    class TerrainKF {
+    public:
+        TerrainKF(float _measurement_nse, float _process_nse);
+        void reset(float z);
+        void predict(float dt);
+        void update(float z);
+        Vector3f project(float dt) const WARN_IF_UNUSED;
+        Vector3f const &get_x() const WARN_IF_UNUSED { return x; }
+        Matrix3f const &get_P() const WARN_IF_UNUSED { return P; }
+        float get_terrain_cm() const WARN_IF_UNUSED { return x.x; }
+
+    private:
+        float process_nse;
+        float measurement_nse;
+        Vector3f x;
+        Matrix3f P;
+        Vector3f H;
+        float R;
+    };
+
+    TerrainKF *terrain_kf = nullptr;
+#endif
 
 #if AP_RPM_ENABLED
     AP_RPM rpm_sensor;
@@ -274,7 +304,6 @@ private:
     // Altitude
     // The cm/s we are moving up or down based on filtered data - Positive = UP
     int16_t climb_rate;
-    float target_rangefinder_alt;      // desired altitude in cm above the ground
 
     // Turn counter
     int32_t quarter_turn_count;
@@ -397,7 +426,6 @@ private:
     float get_roi_yaw();
     float get_look_ahead_yaw();
     float get_pilot_desired_climb_rate(float throttle_control);
-    float get_surface_tracking_climb_rate(int16_t target_rate, float current_alt_target, float dt);
     void rotate_body_frame_to_NE(float &x, float &y);
     void Log_Write_Control_Tuning();
     void Log_Write_Attitude();
@@ -472,7 +500,6 @@ private:
     void read_barometer(void);
     void init_rangefinder(void);
     void read_rangefinder(void);
-    bool rangefinder_alt_ok(void) const;
     void terrain_update();
     void terrain_logging();
     void init_ardupilot() override;
@@ -530,9 +557,6 @@ private:
     void translate_circle_nav_rp(float &lateral_out, float &forward_out);
     void translate_pos_control_rp(float &lateral_out, float &forward_out);
 
-    bool surface_init(void);
-    void surface_run();
-
     void stats_update();
 
     uint16_t get_pilot_speed_dn() const;
@@ -578,6 +602,7 @@ private:
     ModeStabilize mode_stabilize;
     ModeAcro mode_acro;
     ModeAlthold mode_althold;
+    ModeRnghold mode_rnghold;
     ModeAuto mode_auto;
     ModeGuided mode_guided;
     ModePoshold mode_poshold;
@@ -595,6 +620,7 @@ private:
 
 public:
     void mainloop_failsafe_check();
+    bool rangefinder_alt_ok() const WARN_IF_UNUSED;
 
     static Sub *_singleton;
 
@@ -608,6 +634,11 @@ public:
 
     // For Lua scripting, so index is 1..4, not 0..3
     uint8_t get_and_clear_button_count(uint8_t index);
+
+#if RANGEFINDER_ENABLED == ENABLED
+    float get_rangefinder_target_cm() const WARN_IF_UNUSED { return mode_rnghold.get_rangefinder_target_cm(); }
+    bool set_rangefinder_target_cm(float new_target_cm) { return mode_rnghold.set_rangefinder_target_cm(new_target_cm); }
+#endif // RANGEFINDER_ENABLED
 #endif // AP_SCRIPTING_ENABLED
 };
 
