@@ -22,6 +22,13 @@ bool ModeCircle::init(bool ignore_checks)
     // initialise circle controller including setting the circle center based on vehicle speed
     sub.circle_nav.init();
 
+    // Hack: force terrain frame, 10m above seafloor. In this mode target_climb_rate is ignored.
+    auto center = sub.circle_nav.get_center();
+    center.z = 1000.0;
+    sub.circle_nav.init(center, true, sub.circle_nav.get_rate());
+//    sub.surface_tracking.enable(true);
+//    sub.surface_tracking.set_rangefinder_target_cm(1000.0);
+
     return true;
 }
 
@@ -61,7 +68,7 @@ void ModeCircle::run()
     motors.set_desired_spool_state(AP_Motors::DesiredSpoolState::THROTTLE_UNLIMITED);
 
     // run circle controller
-    sub.failsafe_terrain_set_status(sub.circle_nav.update());
+    sub.failsafe_terrain_set_status(sub.circle_nav.update(target_climb_rate));
 
     ///////////////////////
     // update xy outputs //
@@ -80,7 +87,6 @@ void ModeCircle::run()
         attitude_control->input_euler_angle_roll_pitch_yaw(channel_roll->get_control_in(), channel_pitch->get_control_in(), sub.circle_nav.get_yaw(), true);
     }
 
-    // update altitude target and call position controller
-    position_control->set_pos_target_z_from_climb_rate_cm(target_climb_rate);
+    // update z controller
     position_control->update_z_controller();
 }
