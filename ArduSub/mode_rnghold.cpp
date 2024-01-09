@@ -3,24 +3,27 @@
 /*
  * RNG_HOLD (rangefinder hold) -- a variation on ALT_HOLD (depth hold)
  *
- * The real work for ALT_HOLD and RNG_HOLD is handled by AC_PosControl, which provides 2 inputs for depth:
- * -- target depth (sub.pos_control._pos_target.z). This is the desired depth, plus an offset.
- * -- target offset (sub.pos_control._pos_offset_target_z). This is the desired offset.
+ * RNG_HOLD starts in the "reset" state (rangefinder_target_cm < 0). RNG_HOLD exits the reset state when these
+ * conditions are met:
+ * -- There is a good rangefinder reading (the rangefinder is healthy, the reading is between min and max, etc.)
+ * -- The sub is below SURFTRAK_DEPTH
  *
- * ALT_HOLD and RNG_HOLD set the target depth in these situations:
- * -- During initialization, we call pos_control.init_z_controller(). This sets target depth to the current depth.
- * -- If the sub hits the surface or bottom we call pos_control.set_pos_target_z_cm().
- * -- If the pilot takes control we call pos_control.set_pos_target_z_from_climb_rate_cm().
+ * RNG_HOLD takes the following actions to exit the reset state:
+ * -- Set the rangefinder target to the current rangefinder reading
+ * -- Set the offset target and offset to the current terrain altitude estimate
  *
- * At the end of the control loop ALT_HOLD and RNG_HOLD call pos_control.update_z_controller() to pass the buck.
+ * During normal operation, RNG_HOLD sets the offset target to the current terrain altitude estimate and calls
+ * AC_PosControl to do the rest:
+ * -- Calculate a jerk-limited path to achieving the offset target
+ * -- Run the PID controllers to smoothly move up or down to the new offset target
  *
- * ALT_HOLD does not use the target offset.
+ * We generally do not want to reset RNG_HOLD if the rangefinder glitches, since that will result in a new rangefinder
+ * target. E.g., if a pilot is running 1m above the seafloor, there is a glitch, and the next rangefinder reading shows
+ * 1.1m, the desired behavior is to move 10cm closer to the seafloor, vs setting a new target of 1.1m above the
+ * seafloor.
  *
- * RNG_HOLD sets the target offset to implement surface tracking. This is handled by Sub::SurfaceTracking. We call
- * SurfaceTracking in these situations:
- * -- During initialization, we call surface_tracking.enable().
- * -- During normal operation, we call surface_tracking.update_surface_offset().
- * -- If the sub hits the surface or bottom, or the pilot takes control, we call surface_tracking.reset().
+ * If the pilot takes control RNG_HOLD uses the change in depth readings to adjust the rangefinder target. This
+ * minimizes the "bounce back" that can happen as the slower rangefinder catches up to the quicker barometer.
  */
 
 #define INVALID_TARGET (-1)
@@ -42,8 +45,7 @@ bool ModeRnghold::init(bool ignore_checks)
 
     if (!sub.rangefinder_alt_ok()) {
         sub.gcs().send_text(MAV_SEVERITY_INFO, "waiting for a rangefinder reading");
-    }
-    if (sub.inertial_nav.get_position_z_up_cm() >= sub.g.surftrak_depth) {
+    } else if (sub.inertial_nav.get_position_z_up_cm() >= sub.g.surftrak_depth) {
         sub.gcs().send_text(MAV_SEVERITY_WARNING, "descend below %g meters to hold range", sub.g.surftrak_depth * 0.01f);
     }
 
@@ -58,7 +60,7 @@ void ModeRnghold::run()
 }
 
 /*
- * Set the rangefinder target, return true if successful
+ * Set the rangefinder target, return true if successful. This may be called from scripting so run a few extra checks.
  */
 bool ModeRnghold::set_rangefinder_target_cm(float target_cm)
 {
@@ -69,9 +71,9 @@ bool ModeRnghold::set_rangefinder_target_cm(float target_cm)
     } else if (sub.inertial_nav.get_position_z_up_cm() >= sub.g.surftrak_depth) {
         sub.gcs().send_text(MAV_SEVERITY_WARNING, "descend below %g meters to set rangefinder target", sub.g.surftrak_depth * 0.01f);
     } else if (target_cm < (float)sub.rangefinder_state.min_cm) {
-        sub.gcs().send_text(MAV_SEVERITY_WARNING, "rangefinder target below minimum, holding depth");
+        sub.gcs().send_text(MAV_SEVERITY_WARNING, "rangefinder target below minimum, ignored");
     } else if (target_cm > (float)sub.rangefinder_state.max_cm) {
-        sub.gcs().send_text(MAV_SEVERITY_WARNING, "rangefinder target above maximum, holding depth");
+        sub.gcs().send_text(MAV_SEVERITY_WARNING, "rangefinder target above maximum, ignored");
     } else {
         success = true;
     }
@@ -111,7 +113,7 @@ void ModeRnghold::control_range() {
     // Desired_climb_rate returns 0 when within the deadzone
     if (fabsf(target_climb_rate_cm_s) < 0.05f)  {
         if (pilot_in_control) {
-            // Pilot has released control; apply the delta to the target rangefinder
+            // Pilot has released control; apply the delta to the rangefinder target
             set_rangefinder_target_cm(rangefinder_target_cm + inertial_nav.get_position_z_up_cm() - pilot_control_start_z_cm);
             pilot_in_control = false;
         }
