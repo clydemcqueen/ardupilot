@@ -223,7 +223,6 @@ class AutoTestSub(AutoTest):
         self.wait_altitude(altitude_min=-31, altitude_max=-30, relative=False, timeout=60)
         self.set_rc(Joystick.Throttle, 1500)
         self.delay_sim_time(3)
-        self.wait_statustext('delta applied', check_context=True)
         self.wait_statustext('rangefinder target is', check_context=True)
         self.context_clear_collection("STATUSTEXT")
         self.watch_distance_maintained()

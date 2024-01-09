@@ -660,7 +660,7 @@ public:
 
 #if RANGEFINDER_ENABLED == ENABLED
     float get_target_rangefinder_cm() const WARN_IF_UNUSED { return mode_rnghold.get_target_rangefinder_cm(); }
-    void set_target_rangefinder_cm(float new_target_cm) { mode_rnghold.set_target_rangefinder_cm(new_target_cm); }
+    bool set_target_rangefinder_cm(float new_target_cm) { return mode_rnghold.set_target_rangefinder_cm(new_target_cm); }
 #endif // RANGEFINDER_ENABLED
 #endif // AP_SCRIPTING_ENABLED
 };
