@@ -149,17 +149,11 @@ bool AP_Arming_Sub::arm(AP_Arming::Method method, bool do_arming_checks)
     // flag exiting this function
     in_arm_motors = false;
 
-    Location loc;
-    ahrs.get_location(loc);
-    if(loc.is_zero()) {
-      if(!sub.g2.backup_home_lat && !sub.g2.backup_home_lon) {
-        gcs().send_text(MAV_SEVERITY_WARNING, "No position available.");
-        gcs().send_text(MAV_SEVERITY_WARNING, "Compass performance degraded.");
-      } else {
-        gcs().send_text(MAV_SEVERITY_INFO, "Using backup location.");
-        sub.set_origin(Location(sub.g2.backup_home_lat, sub.g2.backup_home_lon, 0, Location::AltFrame::ABSOLUTE));
-      }
+    // if we do not have an ekf origin then we can't use the WMM tables
+    if (!sub.ensure_ekf_origin()) {
+        gcs().send_text(MAV_SEVERITY_WARNING, "Compass performance degraded");
     }
+
     // return success
     return true;
 }

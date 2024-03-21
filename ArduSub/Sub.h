@@ -425,7 +425,7 @@ private:
     void set_home_to_current_location_inflight();
     bool set_home_to_current_location(bool lock) WARN_IF_UNUSED;
     bool set_home(const Location& loc, bool lock) WARN_IF_UNUSED;
-    void set_origin(const Location& loc);
+    bool ensure_ekf_origin();
     bool far_from_EKF_origin(const Location& loc);
     void exit_mission();
     bool verify_loiter_unlimited();
