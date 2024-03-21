@@ -441,6 +441,9 @@ void NavEKF3_core::InitialiseVariablesMag()
 #endif
     needMagBodyVarReset = false;
     needEarthBodyVarReset = false;
+#if HAL_LOGGING_ENABLED
+    magFusionSel = MagFuseSel::NOT_FUSING;
+#endif
 }
 
 /*
