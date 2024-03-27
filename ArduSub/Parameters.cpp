@@ -721,6 +721,13 @@ const AP_Param::GroupInfo ParametersG2::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("ORIGIN_LON", 20, ParametersG2, backup_origin_lon, 0),
 
+    // @Param: ORIGIN_ALT
+    // @DisplayName: Backup altitude (MSL) for EKF origin
+    // @Description:  Backup EKF origin altitude (MSL) used when not using a positioning system.
+    // @Units: m
+    // @User: Standard
+    AP_GROUPINFO("ORIGIN_ALT", 21, ParametersG2, backup_origin_alt, 0),
+
     AP_GROUPEND
 };
 

@@ -392,7 +392,9 @@ bool Sub::ensure_ekf_origin()
     }
 
     auto backup_origin = Location(static_cast<int32_t>(sub.g2.backup_origin_lat * 1e7),
-                                  static_cast<int32_t>(sub.g2.backup_origin_lon * 1e7), 0, Location::AltFrame::ABSOLUTE);
+                                  static_cast<int32_t>(sub.g2.backup_origin_lon * 1e7),
+                                  static_cast<int32_t>(sub.g2.backup_origin_alt * 100),
+                                  Location::AltFrame::ABSOLUTE);
 
     if (backup_origin.lat == 0 || backup_origin.lng == 0) {
         gcs().send_text(MAV_SEVERITY_WARNING, "Backup location parameters are missing or zero");
