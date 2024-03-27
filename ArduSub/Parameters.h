@@ -366,8 +366,8 @@ public:
     // control over servo output ranges
     SRV_Channels servo_channels;
 
-    AP_Float backup_home_lat;
-    AP_Float backup_home_lon;
+    AP_Float backup_origin_lat;
+    AP_Float backup_origin_lon;
 };
 
 extern const AP_Param::Info        var_info[];

@@ -709,17 +709,17 @@ const AP_Param::GroupInfo ParametersG2::var_info[] = {
 
     // 18 was scripting
 
-    // @Param: HOME_LAT
-    // @DisplayName: Backup latitude for home position
-    // @Description:  Backup home latitude position used when not using a positioning system.
+    // @Param: ORIGIN_LAT
+    // @DisplayName: Backup latitude for EKF origin
+    // @Description:  Backup EKF origin latitude used when not using a positioning system.
     // @User: Standard
-    AP_GROUPINFO("HOME_LAT", 19, ParametersG2, backup_home_lat, 0),
+    AP_GROUPINFO("ORIGIN_LAT", 19, ParametersG2, backup_origin_lat, 0),
 
-    // @Param: HOME_LON
-    // @DisplayName: Backup longitude for home position
-    // @Description:  Backup home longitude position used when not using a positioning system.
+    // @Param: ORIGIN_LON
+    // @DisplayName: Backup longitude for EKF origin
+    // @Description:  Backup EKF origin longitude used when not using a positioning system.
     // @User: Standard
-    AP_GROUPINFO("HOME_LON", 20, ParametersG2, backup_home_lon, 0),
+    AP_GROUPINFO("ORIGIN_LON", 20, ParametersG2, backup_origin_lon, 0),
 
     AP_GROUPEND
 };

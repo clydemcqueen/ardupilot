@@ -664,14 +664,14 @@ class AutoTestSub(vehicle_test_suite.TestSuite):
         self.waiting_to_arm_count += 1
 
     def backup_home(self):
-        """Test HOME_LAT and HOME_LON parameters"""
+        """Test ORIGIN_LAT and ORIGIN_LON parameters"""
 
         self.context_push()
         self.set_parameters({
             'GPS_TYPE': 0,              # Disable GPS
             'EK3_SRC1_POSXY': 0,        # Make sure EK3_SRC parameters do not refer to GPS
-            'HOME_LAT': 47.607584,
-            'HOME_LON': -122.343911,
+            'ORIGIN_LAT': 47.607584,
+            'ORIGIN_LON': -122.343911,
         })
         self.reboot_sitl()
         self.context_collect('STATUSTEXT')
