@@ -10,6 +10,7 @@ AP_FLAKE8_CLEAN
 from __future__ import print_function
 import os
 import sys
+import time
 
 from pymavlink import mavutil
 
@@ -508,7 +509,7 @@ class AutoTestSub(vehicle_test_suite.TestSuite):
             self.assert_mode('SURFACE')
 
     def MAV_CMD_MISSION_START(self):
-        '''test handling of MAV_CMD_NAV_LAND received via mavlink'''
+        '''test handling of MAV_CMD_NAV_START received via mavlink'''
         self.upload_simple_relhome_mission([
             (mavutil.mavlink.MAV_CMD_NAV_WAYPOINT, 2000, 0, 0),
             (mavutil.mavlink.MAV_CMD_NAV_RETURN_TO_LAUNCH, 0, 0, 0),
@@ -604,6 +605,199 @@ class AutoTestSub(vehicle_test_suite.TestSuite):
         self.disarm_vehicle()
         self.progress("Mission OK")
 
+    EKF_SRC_PARAMS_COMMON = {
+        "SIM_GPS_ACC": 0.3,         # note that this has no effect on lat/lon; hack up SIM_GPS.cpp to add noise
+        "EK3_POSNE_M_NSE": 4.0,     # tell the EKF that there is more GPS noise
+        "CIRCLE_RADIUS": 200.0,     # 2m radius
+        "CIRCLE_RATE": 15.0,        # 15 deg/s
+    }
+
+    EKF_SRC_DVL_PARAMS = {
+        "EK3_SRC1_POSXY": 6,        # change xyz pos and vel from GPS to vision
+        "EK3_SRC1_VELXY": 6,
+        "EK3_SRC1_POSZ": 6,
+        "EK3_SRC1_VELZ": 6,
+        "GPS1_TYPE": 0,             # disable GPS
+        "VISO_TYPE": 1,
+        "SERIAL5_PROTOCOL": 1,
+        "SIM_VICON_TMASK": 8,       # send VISION_POSITION_DELTA
+    }
+
+    EKF_SRC_FUSION_PARAMS = {
+        "EK3_SRC1_VELXY": 6,        # change xyz vel (but not pos) from GPS to vision
+        "EK3_SRC1_VELZ": 6,
+        "VISO_TYPE": 1,
+        "SERIAL5_PROTOCOL": 1,
+        "SIM_VICON_TMASK": 8,       # send VISION_POSITION_DELTA
+    }
+
+    EKF_SRC_CIRCLE_TIME = 40
+
+    EKF_SRC_MISSION_REL = [
+        (mavutil.mavlink.MAV_CMD_NAV_WAYPOINT, -10, -10, -3),
+        (mavutil.mavlink.MAV_CMD_NAV_WAYPOINT, -10, 10, -3),
+        (mavutil.mavlink.MAV_CMD_NAV_WAYPOINT, 10, 10, -3),
+        (mavutil.mavlink.MAV_CMD_NAV_WAYPOINT, 10, -10, -3),
+        (mavutil.mavlink.MAV_CMD_NAV_WAYPOINT, -10, -10, -3),
+    ]
+
+    def ekf_src_gps(self):
+        """GPS navigation"""
+
+        self.context_push()
+        self.set_parameters(AutoTestSub.EKF_SRC_PARAMS_COMMON)
+        self.reboot_sitl()
+
+        self.wait_ready_to_arm()
+        self.arm_vehicle()
+
+        # dive a little
+        self.set_rc(Joystick.Throttle, 1300)
+        self.delay_sim_time(3)
+        self.set_rc(Joystick.Throttle, 1500)
+        self.delay_sim_time(2)
+
+        # move in a circle for a while
+        self.change_mode('CIRCLE')
+        self.delay_sim_time(AutoTestSub.EKF_SRC_CIRCLE_TIME)
+
+        # run a simple mission
+        self.upload_simple_relhome_mission(AutoTestSub.EKF_SRC_MISSION_REL)
+        self.change_mode('AUTO')
+        self.wait_waypoint(0, len(AutoTestSub.EKF_SRC_MISSION_REL))
+
+        self.disarm_vehicle()
+        self.wait_disarmed()
+        self.context_pop()
+        self.reboot_sitl()
+
+    def ekf_src_dvl(self):
+        """Disable GPS navigation, enable input of VISION_POSITION_DELTA."""
+
+        self.customise_SITL_commandline(["--uartF=sim:vicon:"])
+
+        if self.current_onboard_log_contains_message("XKFD"):
+            raise NotAchievedException("Found unexpected XKFD message")
+
+        self.progress("Waiting for location")
+        self.wait_ready_to_arm()
+
+        # scribble down a location we can set origin to
+        origin_msg = self.mav.recv_match(type='GLOBAL_POSITION_INT', blocking=True)
+
+        # configure EKF to use external nav instead of GPS
+        self.context_push()
+        self.set_parameters(AutoTestSub.EKF_SRC_DVL_PARAMS)
+        self.set_parameters(AutoTestSub.EKF_SRC_PARAMS_COMMON)
+        self.reboot_sitl()
+
+        # without a GPS or some sort of external prompting, AP
+        # doesn't send system_time messages.  So prompt it:
+        self.mav.mav.system_time_send(int(time.time() * 1000000), 0)
+        self.progress("Waiting for non-zero-lat")
+        tstart = self.get_sim_time()
+        while True:
+            self.mav.mav.set_gps_global_origin_send(1,
+                                                    origin_msg.lat,
+                                                    origin_msg.lon,
+                                                    origin_msg.alt)
+            gpi = self.mav.recv_match(type='GLOBAL_POSITION_INT',
+                                      blocking=True)
+            self.progress("gpi=%s" % str(gpi))
+            if gpi.lat != 0:
+                break
+
+            if self.get_sim_time_cached() - tstart > 60:
+                raise AutoTestTimeoutException("Did not get non-zero lat")
+
+        # can't use wait_ready_to_arm() because we won't see EKF.flags == 831
+        # self.wait_ready_to_arm()
+        self.arm_vehicle()
+
+        # dive a little
+        self.set_rc(Joystick.Throttle, 1300)
+        self.delay_sim_time(3)
+        self.set_rc(Joystick.Throttle, 1500)
+        self.delay_sim_time(2)
+
+        # move in a circle for a while
+        self.change_mode('CIRCLE')
+        self.delay_sim_time(AutoTestSub.EKF_SRC_CIRCLE_TIME)
+
+        # run a simple mission
+        self.upload_simple_relhome_mission(AutoTestSub.EKF_SRC_MISSION_REL)
+        self.change_mode('AUTO')
+        self.wait_waypoint(0, len(AutoTestSub.EKF_SRC_MISSION_REL))
+
+        self.disarm_vehicle()
+        self.wait_disarmed()
+
+        if not self.current_onboard_log_contains_message("XKFD"):
+            raise NotAchievedException("Did not find expected XKFD message")
+
+        self.context_pop()
+        self.reboot_sitl()
+
+    EKF_SRC_MISSION_ABS = [
+        (mavutil.mavlink.MAV_CMD_NAV_WAYPOINT, 33.8102, -118.3939, -3),
+        (mavutil.mavlink.MAV_CMD_NAV_WAYPOINT, 33.8102, -118.3937, -3),
+        (mavutil.mavlink.MAV_CMD_NAV_WAYPOINT, 33.8104, -118.3937, -3),
+        (mavutil.mavlink.MAV_CMD_NAV_WAYPOINT, 33.8104, -118.3939, -3),
+        (mavutil.mavlink.MAV_CMD_NAV_WAYPOINT, 33.8102, -118.3939, -3),
+    ]
+
+    def create_abs_mission(self, items):
+        """Create a simple mission w/o relying on the home position."""
+        seq = 0
+        ret = []
+        for item in items:
+            (t, n, e, alt) = item
+            ret.append(self.create_MISSION_ITEM_INT(t, seq=seq, x=int(n*1e7), y=int(e*1e7), z=alt,
+                                                    frame=mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT_INT))
+            seq += 1
+        return ret
+
+    def ekf_src_dvl_gps_fusion(self):
+        """Combine GPS and DVL navigation."""
+
+        self.customise_SITL_commandline(["--uartF=sim:vicon:"])
+
+        if self.current_onboard_log_contains_message("XKFD"):
+            raise NotAchievedException("Found unexpected XKFD message")
+
+        # configure EKF to use external nav in addition to GPS
+        self.context_push()
+        self.set_parameters(AutoTestSub.EKF_SRC_FUSION_PARAMS)
+        self.set_parameters(AutoTestSub.EKF_SRC_PARAMS_COMMON)
+        self.reboot_sitl()
+
+        self.wait_ready_to_arm()
+        self.arm_vehicle()
+
+        # dive a little
+        self.set_rc(Joystick.Throttle, 1300)
+        self.delay_sim_time(3)
+        self.set_rc(Joystick.Throttle, 1500)
+        self.delay_sim_time(2)
+
+        # move in a circle for a while
+        self.change_mode('CIRCLE')
+        self.delay_sim_time(AutoTestSub.EKF_SRC_CIRCLE_TIME)
+
+        # run a simple mission
+        self.upload_simple_relhome_mission(AutoTestSub.EKF_SRC_MISSION_REL)
+        self.change_mode('AUTO')
+        self.wait_waypoint(0, len(AutoTestSub.EKF_SRC_MISSION_REL))
+
+        self.disarm_vehicle()
+        self.wait_disarmed()
+
+        if not self.current_onboard_log_contains_message("XKFD"):
+            raise NotAchievedException("Did not find expected XKFD message")
+
+        self.context_pop()
+        self.reboot_sitl()
+
     def tests(self):
         '''return list of all tests'''
         ret = super(AutoTestSub, self).tests()
@@ -628,6 +822,9 @@ class AutoTestSub(vehicle_test_suite.TestSuite):
             self.MAV_CMD_DO_CHANGE_SPEED,
             self.MAV_CMD_CONDITION_YAW,
             self.TerrainMission,
+            self.ekf_src_gps,
+            self.ekf_src_dvl,
+            self.ekf_src_dvl_gps_fusion,
         ])
 
         return ret
