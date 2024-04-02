@@ -125,6 +125,16 @@ void AP_Compass_SITL::_timer()
         new_mag_data = buffer[best_index].data;
     }
 
+#if 1
+    // Hack: 10d yaw bias
+    Matrix3f rot(
+    0.9848077, -0.1736482,  0.0000000,
+    0.1736482,  0.9848077,  0.0000000,
+    0.0000000,  0.0000000,  1.0000000
+    );
+    new_mag_data = rot * new_mag_data;
+#endif
+
     for (uint8_t i=0; i<_num_compass; i++) {
         _setup_eliptical_correcion(i);
         Vector3f f = (_eliptical_corr * new_mag_data) - _sitl->mag_ofs[i].get();
