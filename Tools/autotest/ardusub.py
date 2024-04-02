@@ -604,6 +604,57 @@ class AutoTestSub(vehicle_test_suite.TestSuite):
         self.disarm_vehicle()
         self.progress("Mission OK")
 
+    def ekf_source_switch(self):
+        """Switch between GPS and DVL in AUTO"""
+
+        # configure GPS as source set 1, DVL as source set 2
+        self.context_push()
+        self.set_parameters({
+            "WPNAV_SPEED": 100,       # 1m/s
+            "EK3_SRC1_POSXY": 3,      # GPS
+            "EK3_SRC1_VELXY": 3,      # GPS
+            "EK3_SRC1_POSZ": 1,       # Baro
+            "EK3_SRC1_VELZ": 0,       # None
+            "EK3_SRC2_POSXY": 6,      # DVL
+            "EK3_SRC2_VELXY": 6,      # DVL
+            "EK3_SRC2_POSZ": 1,       # Baro
+            "EK3_SRC2_VELZ": 0,       # None
+            "EK3_SRC_OPTIONS": 0,     # Do not fuse velocities
+            "VISO_TYPE": 1,
+            "SERIAL5_PROTOCOL": 1,
+            "SIM_VICON_TMASK": 8,     # send VISION_POSITION_DELTA
+        })
+
+        # start the DVL on reboot
+        self.customise_SITL_commandline(["--uartF=sim:vicon:"])
+        self.reboot_sitl()
+
+        items = [
+            (mavutil.mavlink.MAV_CMD_NAV_WAYPOINT, 0, 0, -3),  # dive so we have constant drag
+            (mavutil.mavlink.MAV_CMD_NAV_WAYPOINT, 200, 0, -1),
+        ]
+        self.upload_simple_relhome_mission(items)
+
+        self.wait_ready_to_arm()
+        self.arm_vehicle()
+        self.run_cmd(mavutil.mavlink.MAV_CMD_MISSION_START)
+        self.progress("SENT MISSION START")
+        self.wait_mode('AUTO')
+
+        # dive
+        self.wait_current_waypoint(2)
+
+        # start with source set 1, switch every 10s
+        for _ in range(10):
+            for source_set in [2, 1]:
+                self.run_cmd(mavutil.mavlink.MAV_CMD_SET_EKF_SOURCE_SET, source_set)
+                self.delay_sim_time(10)
+
+        self.disarm_vehicle()
+        self.wait_disarmed()
+        self.context_pop()
+        self.reboot_sitl()
+
     def tests(self):
         '''return list of all tests'''
         ret = super(AutoTestSub, self).tests()
@@ -628,6 +679,7 @@ class AutoTestSub(vehicle_test_suite.TestSuite):
             self.MAV_CMD_DO_CHANGE_SPEED,
             self.MAV_CMD_CONDITION_YAW,
             self.TerrainMission,
+            self.ekf_source_switch,
         ])
 
         return ret
