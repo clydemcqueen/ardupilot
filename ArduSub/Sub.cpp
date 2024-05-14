@@ -20,6 +20,21 @@
 
 const AP_HAL::HAL& hal = AP_HAL::get_HAL();
 
+#if AP_SCRIPTING_ENABLED
+// set target position and velocity (for use by scripting)
+bool Sub::set_target_posvel_NED(const Vector3f& target_pos, const Vector3f& target_vel)
+{
+    if (control_mode != Mode::Number::GUIDED) {
+        return false;
+    }
+
+    const Vector3f pos_neu_cm(target_pos.x * 100.0f, target_pos.y * 100.0f, -target_pos.z * 100.0f);
+    const Vector3f vel_neu_cms(target_vel.x * 100.0f, target_vel.y * 100.0f, -target_vel.z * 100.0f);
+
+    return mode_guided.guided_set_destination_posvel(pos_neu_cm, vel_neu_cms);
+}
+#endif // AP_SCRIPTING_ENABLED
+
 /*
   constructor for main Sub class
  */
