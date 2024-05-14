@@ -66,7 +66,6 @@ public:
     virtual bool has_manual_throttle() const = 0;
     virtual bool allows_arming(bool from_gcs) const = 0;
     virtual bool is_autopilot() const { return false; }
-    virtual bool in_guided_mode() const { return false; }
 
     // return a string for this flightmode
     virtual const char *name() const = 0;
@@ -80,7 +79,6 @@ public:
 
   
     // pilot input processing
-    void get_pilot_desired_accelerations(float &right_out, float &front_out) const;
     void get_pilot_desired_angle_rates(int16_t roll_in, int16_t pitch_in, int16_t yaw_in, float &roll_out, float &pitch_out, float &yaw_out);
 
 
@@ -126,7 +124,6 @@ public:
             return (autopilot_yaw_mode)_mode;
         }
         void set_mode_to_default(bool rtl);
-        void set_mode(autopilot_yaw_mode new_mode);
         autopilot_yaw_mode default_mode(bool rtl) const;
 
         void set_rate(float new_rate_cds);
@@ -148,7 +145,6 @@ public:
         float rate_cds();
 
         float look_ahead_yaw();
-        float roi_yaw();
 
         // auto flight mode's yaw mode
         uint8_t _mode = AUTO_YAW_LOOK_AT_NEXT_WP;
@@ -348,7 +344,6 @@ private:
     void guided_vel_control_run();
     void guided_posvel_control_run();
     void guided_angle_control_run();
-    void guided_takeoff_run();
     void guided_pos_control_start();
     void guided_vel_control_start();
     void guided_posvel_control_start();
