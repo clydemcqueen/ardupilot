@@ -312,6 +312,14 @@ void SITL_State::_simulator_servos(struct sitl_input &input)
         }
     }
 
+    if (pwm_output[0] == 0) {
+        // TODO this happens twice during initialization. Who is stomping on this?
+        printf("(SITL_State::_simulator_servos) pwm_output[0] == 0, bad value, set pwm_output[0..5] to 1500\n");
+        for (uint8_t i=0; i<6; i++) {
+            pwm_output[i] = 1500;
+        }
+    }
+
     // output at chosen framerate
     uint32_t now = AP_HAL::micros();
     last_update_usec = now;
