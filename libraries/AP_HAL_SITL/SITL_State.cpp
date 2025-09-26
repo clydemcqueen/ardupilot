@@ -310,13 +310,10 @@ void SITL_State::_simulator_servos(struct sitl_input &input)
         if (_vehicle == ArduPlane) {
             pwm_output[0] = pwm_output[1] = pwm_output[3] = 1500;
         }
-    }
-
-    if (pwm_output[0] == 0) {
-        // TODO this happens twice during initialization. Who is stomping on this?
-        printf("(SITL_State::_simulator_servos) pwm_output[0] == 0, bad value, set pwm_output[0..5] to 1500\n");
-        for (uint8_t i=0; i<6; i++) {
-            pwm_output[i] = 1500;
+        if (_vehicle == ArduSub) {
+            for (uint8_t i=0; i<8; i++) {
+                pwm_output[i] = 1500;
+            }
         }
     }
 
