@@ -11,6 +11,7 @@ enum GuidedSubMode {
     Guided_WP,
     Guided_Velocity,
     Guided_PosVel,
+    Guided_PosVelTerrain,
     Guided_Angle,
 };
 
@@ -350,11 +351,13 @@ private:
     void guided_pos_control_run();
     void guided_vel_control_run();
     void guided_posvel_control_run();
+    void guided_posvel_terrain_control_run();
     void guided_angle_control_run();
     void guided_takeoff_run();
     void guided_pos_control_start();
     void guided_vel_control_start();
     void guided_posvel_control_start();
+    void guided_posvel_terrain_control_start();
     void guided_angle_control_start();
 };
 

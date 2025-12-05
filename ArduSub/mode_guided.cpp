@@ -9,7 +9,7 @@
 
 static Vector3p posvel_pos_target_cm;
 static Vector3f posvel_vel_target_cms;
-static Location::AltFrame posvel_frame;
+
 static uint32_t update_time_ms;
 
 struct {
@@ -115,22 +115,6 @@ void ModeGuided::guided_vel_control_start()
     set_auto_yaw_mode(AUTO_YAW_HOLD);
 }
 
-// posvel helper function: use above home frame
-void ModeGuided::set_posvel_frame_above_home()
-{
-    posvel_frame = Location::AltFrame::ABOVE_HOME;
-    position_control->set_pos_offset_z_cm(0);
-    position_control->set_pos_offset_target_z_cm(0);
-}
-
-// posvel helper function: use above terrain frame
-void ModeGuided::set_posvel_frame_above_terrain(float destination_z)
-{
-    posvel_frame = Location::AltFrame::ABOVE_TERRAIN;
-    position_control->set_pos_offset_z_cm(sub.rangefinder_state.inertial_alt_cm - destination_z);
-    position_control->set_pos_offset_target_z_cm(sub.rangefinder_state.rangefinder_terrain_offset_cm);
-}
-
 // initialise guided mode's posvel controller
 void ModeGuided::guided_posvel_control_start()
 {
@@ -148,8 +132,33 @@ void ModeGuided::guided_posvel_control_start()
     // pilot always controls yaw
     set_auto_yaw_mode(AUTO_YAW_HOLD);
 
-    // default frame is ABOVE_HOME
-    set_posvel_frame_above_home();
+    // frame is ABOVE_HOME
+    position_control->set_pos_offset_z_cm(0);
+    position_control->set_pos_offset_target_z_cm(0);
+}
+
+// initialise guided mode's posvel terrain controller
+void ModeGuided::guided_posvel_terrain_control_start()
+{
+    // set guided_mode to velocity controller
+    sub.guided_mode = Guided_PosVelTerrain;
+
+    // set vertical speed and acceleration
+    position_control->set_max_speed_accel_z(sub.wp_nav.get_default_speed_down(), sub.wp_nav.get_default_speed_up(), sub.wp_nav.get_accel_z());
+    position_control->set_correction_speed_accel_z(sub.wp_nav.get_default_speed_down(), sub.wp_nav.get_default_speed_up(), sub.wp_nav.get_accel_z());
+
+    // initialise velocity controller
+    position_control->init_z_controller();
+    position_control->init_xy_controller();
+
+    // pilot always controls yaw
+    set_auto_yaw_mode(AUTO_YAW_HOLD);
+
+    // default frame is ABOVE_TERRAIN
+    // Note: this function is usually called from guided_set_destination_posvel which sets the offsets correctly
+    // but we initialize them here to something safe
+    position_control->set_pos_offset_z_cm(0);
+    position_control->set_pos_offset_target_z_cm(0);
 }
 
 // initialise guided mode's angle controller
@@ -314,29 +323,29 @@ void ModeGuided::guided_set_velocity(const Vector3f& velocity, bool use_yaw, flo
 bool ModeGuided::guided_set_destination_posvel(const Vector3f& destination, const Vector3f& velocity, Location::AltFrame alt_frame)
 {
     // check we are in posvel control mode
-    if (sub.guided_mode != Guided_PosVel) {
-        // catch some configuration errors by requiring a healthy rangefinder to specify the ABOVE_TERRAIN frame
-        if (alt_frame == Location::AltFrame::ABOVE_TERRAIN && !sub.rangefinder_alt_ok()) {
-            gcs().send_text(MAV_SEVERITY_WARNING, "Terrain data (rangefinder) not available");
-            return false;
-        }
-
-        guided_posvel_control_start();
-
-        if (alt_frame == Location::AltFrame::ABOVE_TERRAIN) {
+    if (alt_frame == Location::AltFrame::ABOVE_TERRAIN) {
+        if (sub.guided_mode != Guided_PosVelTerrain) {
+            if (!sub.rangefinder_alt_ok()) {
+                gcs().send_text(MAV_SEVERITY_WARNING, "Terrain data (rangefinder) not available");
+                return false;
+            }
+            guided_posvel_terrain_control_start();
+            
             // initialize the terrain offset
             // destination.z is the rangefinder target
-            set_posvel_frame_above_terrain(destination.z);
+            position_control->set_pos_offset_z_cm(sub.rangefinder_state.inertial_alt_cm - destination.z);
+            position_control->set_pos_offset_target_z_cm(sub.rangefinder_state.rangefinder_terrain_offset_cm);
+        } else {
+             // rangefinder target may have changed
+            position_control->set_pos_offset_z_cm(position_control->get_pos_offset_z_cm() + posvel_pos_target_cm.z - destination.z);
         }
     } else {
-        if (alt_frame == Location::AltFrame::ABOVE_TERRAIN) {
-            // rangefinder target may have changed
-            position_control->set_pos_offset_z_cm(position_control->get_pos_offset_z_cm() + posvel_pos_target_cm.z - destination.z);
-        } else {
-            set_posvel_frame_above_home();
+        if (sub.guided_mode != Guided_PosVel) {
+            guided_posvel_control_start();
         }
     }
 
+    // TODO move fence check to top
 #if AP_FENCE_ENABLED
     // reject destination if outside the fence
     const Location dest_loc(destination, alt_frame);
@@ -474,6 +483,11 @@ void ModeGuided::run()
     case Guided_PosVel:
         // run position-velocity controller
         guided_posvel_control_run();
+        break;
+
+    case Guided_PosVelTerrain:
+        // run position-velocity controller
+        guided_posvel_terrain_control_run();
         break;
 
     case Guided_Angle:
@@ -668,18 +682,94 @@ void ModeGuided::guided_posvel_control_run()
 
     // send position and velocity targets to position controller
     position_control->input_pos_vel_accel_xy(posvel_pos_target_cm.xy(), posvel_vel_target_cms.xy(), Vector2f());
-#if AP_RANGEFINDER_ENABLED
-    if (posvel_frame == Location::AltFrame::ABOVE_TERRAIN) {
-        if (sub.rangefinder_alt_ok()) {
-            // surftrak: set the offset target to the current terrain altitude estimate
-            position_control->set_pos_offset_target_z_cm(sub.rangefinder_state.rangefinder_terrain_offset_cm);
-        }
-        position_control->set_pos_target_z_from_climb_rate_cm(posvel_vel_target_cms.z);
+
+    float pz = posvel_pos_target_cm.z;
+    position_control->input_pos_vel_accel_z(pz, posvel_vel_target_cms.z, 0);
+    posvel_pos_target_cm.z = pz;
+
+    // run position controller
+    position_control->update_xy_controller();
+    position_control->update_z_controller();
+
+    float lateral_out, forward_out;
+    sub.translate_pos_control_rp(lateral_out, forward_out);
+
+    // Send to forward/lateral outputs
+    motors.set_lateral(lateral_out);
+    motors.set_forward(forward_out);
+
+    // call attitude controller
+    if (sub.auto_yaw_mode == AUTO_YAW_HOLD) {
+        // roll & pitch & yaw rate from pilot
+        attitude_control->input_euler_angle_roll_pitch_euler_rate_yaw(channel_roll->get_control_in(), channel_pitch->get_control_in(), target_yaw_rate);
+    } else if (sub.auto_yaw_mode == AUTO_YAW_LOOK_AT_HEADING) {
+        // roll, pitch from pilot, yaw & yaw_rate from auto_control
+        target_yaw_rate = sub.yaw_look_at_heading_slew * 100.0;
+        attitude_control->input_euler_angle_roll_pitch_slew_yaw(channel_roll->get_control_in(), channel_pitch->get_control_in(), get_auto_heading(), target_yaw_rate);
+    } else if (sub.auto_yaw_mode == AUTO_YAW_RATE) {
+        // roll, pitch from pilot, and yaw_rate from auto_control
+        target_yaw_rate = sub.yaw_look_at_heading_slew * 100.0;
+        attitude_control->input_euler_angle_roll_pitch_euler_rate_yaw(channel_roll->get_control_in(), channel_pitch->get_control_in(), target_yaw_rate);
     } else {
-        float pz = posvel_pos_target_cm.z;
-        position_control->input_pos_vel_accel_z(pz, posvel_vel_target_cms.z, 0);
-        posvel_pos_target_cm.z = pz;
+        // roll, pitch from pilot, yaw heading from auto_heading()
+        attitude_control->input_euler_angle_roll_pitch_yaw(channel_roll->get_control_in(), channel_pitch->get_control_in(), get_auto_heading(), true);
     }
+}
+
+// guided_posvel_terrain_control_run - runs the guided posvel controller
+// called from guided_run
+void ModeGuided::guided_posvel_terrain_control_run()
+{
+    // if motors not enabled set throttle to zero and exit immediately
+    if (!motors.armed()) {
+        motors.set_desired_spool_state(AP_Motors::DesiredSpoolState::GROUND_IDLE);
+        // Sub vehicles do not stabilize roll/pitch/yaw when disarmed
+        attitude_control->set_throttle_out(0,true,g.throttle_filt);
+        attitude_control->relax_attitude_controllers();
+        // initialise velocity controller
+        position_control->init_z_controller();
+        position_control->init_xy_controller();
+        return;
+    }
+
+    // process pilot's yaw input
+    float target_yaw_rate = 0;
+
+    if (!sub.failsafe.pilot_input) {
+        // get pilot's desired yaw rate
+        target_yaw_rate = sub.get_pilot_desired_yaw_rate(channel_yaw->get_control_in());
+        if (!is_zero(target_yaw_rate)) {
+            set_auto_yaw_mode(AUTO_YAW_HOLD);
+        } else{
+            if (sub.yaw_rate_only){
+                set_auto_yaw_mode(AUTO_YAW_RATE);
+            } else{
+                set_auto_yaw_mode(AUTO_YAW_LOOK_AT_HEADING);
+            }
+        }
+    }
+
+    // set motors to full range
+    motors.set_desired_spool_state(AP_Motors::DesiredSpoolState::THROTTLE_UNLIMITED);
+
+    // set velocity to zero if no updates received for 3 seconds
+    uint32_t tnow = AP_HAL::millis();
+    if (tnow - update_time_ms > GUIDED_POSVEL_TIMEOUT_MS && !posvel_vel_target_cms.is_zero()) {
+        posvel_vel_target_cms.zero();
+    }
+
+    // advance position target using velocity target
+    posvel_pos_target_cm += (posvel_vel_target_cms * position_control->get_dt()).topostype();
+
+    // send position and velocity targets to position controller
+    position_control->input_pos_vel_accel_xy(posvel_pos_target_cm.xy(), posvel_vel_target_cms.xy(), Vector2f());
+
+#if AP_RANGEFINDER_ENABLED
+    if (sub.rangefinder_alt_ok()) {
+        // surftrak: set the offset target to the current terrain altitude estimate
+        position_control->set_pos_offset_target_z_cm(sub.rangefinder_state.rangefinder_terrain_offset_cm);
+    }
+    position_control->set_pos_target_z_from_climb_rate_cm(posvel_vel_target_cms.z);
 #else
     float pz = posvel_pos_target_cm.z;
     position_control->input_pos_vel_accel_z(pz, posvel_vel_target_cms.z, 0);
