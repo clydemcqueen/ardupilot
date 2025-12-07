@@ -6,7 +6,7 @@ Parameters are in-code defaults plus default_params/sub.parm
 
 AP_FLAKE8_CLEAN
 '''
-
+import math
 import os
 
 from pymavlink import mavutil, mavextra
@@ -475,20 +475,21 @@ class AutoTestSub(vehicle_test_suite.TestSuite):
         # GUIDED mode supports several sub-modes selected by the POSITION_TARGET_TYPE mask
         # The Guided_PosVel sub-mode supports rapid updates and several altitude frames
         posvel_mode = (mavutil.mavlink.POSITION_TARGET_TYPEMASK_AX_IGNORE |
-                mavutil.mavlink.POSITION_TARGET_TYPEMASK_AY_IGNORE |
-                mavutil.mavlink.POSITION_TARGET_TYPEMASK_AZ_IGNORE |
-                mavutil.mavlink.POSITION_TARGET_TYPEMASK_YAW_IGNORE |
-                mavutil.mavlink.POSITION_TARGET_TYPEMASK_YAW_RATE_IGNORE)
+                       mavutil.mavlink.POSITION_TARGET_TYPEMASK_AY_IGNORE |
+                       mavutil.mavlink.POSITION_TARGET_TYPEMASK_AZ_IGNORE |
+                       mavutil.mavlink.POSITION_TARGET_TYPEMASK_YAW_IGNORE |
+                       mavutil.mavlink.POSITION_TARGET_TYPEMASK_YAW_RATE_IGNORE)
 
+        # Everything in meters and meters/second unless noted
         seafloor_depth = 50
-        speed_cms = 50
+        speed = 0.5
 
         # Generate a synthetic seafloor at -50m
         self.context_push()
         self.prepare_synthetic_seafloor_test(seafloor_depth, 10)  # rf_target is not used
 
         # Guided_PosVel uses WPNAV_SPEED
-        self.set_parameter('WPNAV_SPEED', speed_cms)
+        self.set_parameter('WPNAV_SPEED', speed * 100.0)
 
         # Dive to starting altitude
         start_altitude = -15
@@ -504,8 +505,8 @@ class AutoTestSub(vehicle_test_suite.TestSuite):
         self.context_set_message_rate_hz('GLOBAL_POSITION_INT', 10)
 
         # Run between 2 locations, 30m apart
-        distance_m = 30
-        timeout = distance_m * 100 / speed_cms + 5  # Add a little time to accelerate, etc.
+        distance = 30
+        timeout = distance / speed + 5  # Add a little time to accelerate, etc.
 
         runs = [{
             # Hold depth at -15m as the terrain rises 10m
@@ -539,7 +540,7 @@ class AutoTestSub(vehicle_test_suite.TestSuite):
         for run in runs:
             msg = self.mav.recv_match(type='GLOBAL_POSITION_INT', blocking=True)
             start_loc = (msg.lat * 1e-7, msg.lon * 1e-7)
-            dest_loc = util.gps_newpos(start_loc[0], start_loc[1], run['bearing'], distance_m)
+            dest_loc = util.gps_newpos(start_loc[0], start_loc[1], run['bearing'], distance)
 
             # current_alt = range or altitude, depending on the frame
             current_alt = None
@@ -584,11 +585,12 @@ class AutoTestSub(vehicle_test_suite.TestSuite):
 
                 # Set the target 10m ahead of the current location
                 target_loc = util.gps_newpos(current_loc[0], current_loc[1], run['bearing'], 10)
+                target_vel = [speed * math.cos(math.radians(run['bearing'])), speed * math.sin(math.radians(run['bearing']))]
 
                 self.mav.mav.set_position_target_global_int_send(
                     0, 1, 1, run['frame'], posvel_mode,
                     int(target_loc[0] * 1e7), int(target_loc[1] * 1e7), run['target_alt'],
-                    0, 0, 0, 0, 0, 0, 0, 0)
+                    target_vel[0], target_vel[1], 0, 0, 0, 0, 0, 0)
 
         self.disarm_vehicle()
         self.context_pop()
