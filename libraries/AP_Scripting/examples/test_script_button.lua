@@ -7,7 +7,7 @@
 -- param set BTN3_SFUNCTION  111
 
 function update()
-  -- called every 5s
+  -- called every 1s
 
   -- show current status of the buttons
   local is_pressed = {}
@@ -15,7 +15,7 @@ function update()
     is_pressed[i] = sub:is_button_pressed(i)
   end
 
-  gcs:send_text(6, string.format("is script button pressed? %s, %s, %s, %s",
+  gcs:send_text(6, string.format("script button pressed? %s, %s, %s, %s",
       tostring(is_pressed[1]), tostring(is_pressed[2]), tostring(is_pressed[3]), tostring(is_pressed[4])))
 
   -- count how many times the buttons were pressed in the last five seconds
@@ -27,7 +27,7 @@ function update()
   gcs:send_text(6, string.format("script button counts: %d, %d, %d, %d",
       count[1], count[2], count[3], count[4]))
 
-  return update, 5000
+  return update, 1000
 end
 
-return update(), 5000
+return update(), 1000

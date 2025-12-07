@@ -1243,6 +1243,62 @@ class AutoTestSub(vehicle_test_suite.TestSuite):
         self.disarm_vehicle()
         self.context_pop()
 
+    def ScriptButton(self):
+        """Test script button bindings"""
+
+        # Map joystick buttons 0..3 (not shifted) to script functions 1..4
+        self.set_parameters({
+            "SCR_ENABLE": 1,
+            "MAV_GCS_SYSID": 250, # allow autotest as the GCS
+            "BTN0_FUNCTION": 108, # Script 1
+            "BTN1_FUNCTION": 109, # Script 2
+            "BTN2_FUNCTION": 110, # Script 3
+            "BTN3_FUNCTION": 111, # Script 4
+        })
+
+        # Install our script
+        self.install_example_script_context("test_script_button.lua")
+
+        # Reboot to enable scripting
+        self.reboot_sitl()
+        self.set_rc_default()
+
+        # Wait for the script to start
+        self.wait_statustext("script button pressed? false, false, false, false", timeout=60)
+
+        # Collect messages
+        self.context_collect('STATUSTEXT')
+
+        # Hold buttons 0..3 down for 10 seconds
+        success_pressed = False
+        success_counts = False
+        tstart = self.get_sim_time()
+        while self.get_sim_time() - tstart < 10:
+            self.mav.mav.manual_control_send(
+                1, # target system
+                0, # pitch
+                0, # roll
+                0, # thrust
+                0, # yaw
+                15, # button mask, select buttons 0..3
+            )
+
+            # Check for messages
+            if self.statustext_in_collections("script button pressed? true, true, true, true"):
+                success_pressed = True
+            if self.statustext_in_collections("script button counts: 1, 1, 1, 1"):
+                success_counts = True
+            if success_pressed and success_counts:
+                break
+
+            self.delay_sim_time(1.0)
+
+        if not success_pressed:
+            raise NotAchievedException("never saw 'script button pressed? true, true, true, true'")
+
+        if not success_counts:
+            raise NotAchievedException("never saw 'script button counts: 1, 1, 1, 1'")
+
     def tests(self):
         '''return list of all tests'''
         ret = super(AutoTestSub, self).tests()
@@ -1282,6 +1338,7 @@ class AutoTestSub(vehicle_test_suite.TestSuite):
             self.SHT3X,
             self.SurfaceSensorless,
             self.GPSForYaw,
+            self.ScriptButton,
         ])
 
         return ret
