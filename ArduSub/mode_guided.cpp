@@ -338,12 +338,11 @@ bool ModeGuided::guided_set_destination_posvel(const Vector3f& destination, cons
             }
             guided_posvel_terrain_control_start();
             
-            // initialize the terrain offset
-            // destination.z is the rangefinder target
+            // bumpless transfer: _pos_desired_neu_m.z = destination.z
             position_control->init_pos_terrain_U_cm(sub.rangefinder_state.inertial_alt_cm - destination.z);
             position_control->set_pos_terrain_target_U_cm(sub.rangefinder_state.rangefinder_terrain_offset_cm);
         } else {
-             // rangefinder target may have changed
+            // rangefinder target may have changed: _pos_desired_neu_m.z -= delta
             position_control->init_pos_terrain_U_cm(position_control->get_pos_terrain_U_m() * 100.0 + posvel_pos_target_cm.z - destination.z);
         }
     } else {
