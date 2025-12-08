@@ -119,10 +119,11 @@ void ModeGuided::guided_vel_control_start()
 }
 
 // initialise guided mode's posvel controller
-void ModeGuided::guided_posvel_control_start()
+void ModeGuided::guided_posvel_control_start(Location::AltFrame alt_frame)
 {
-    // set guided_mode to velocity controller
+    // set guided_mode to posvel controller
     sub.guided_mode = Guided_PosVel;
+    posvel_frame = alt_frame;
 
     // set vertical speed and acceleration
     // All limits must be positive
@@ -311,27 +312,27 @@ bool ModeGuided::guided_set_destination_posvel(const Vector3f& destination, cons
     }
 #endif
 
-    // check we are in posvel control mode
-    if (alt_frame == Location::AltFrame::ABOVE_TERRAIN) {
-        if (sub.guided_mode != Guided_PosVel || posvel_frame != alt_frame) {
+    // ensure we are in Guided_PosVel sub-mode and the frames match
+    if (sub.guided_mode != Guided_PosVel || posvel_frame != alt_frame)
+    {
+        if (alt_frame == Location::AltFrame::ABOVE_TERRAIN) {
             if (!sub.rangefinder_alt_ok()) {
                 gcs().send_text(MAV_SEVERITY_WARNING, "Terrain data (rangefinder) not available");
                 return false;
             }
-            posvel_frame = alt_frame;
-            guided_posvel_control_start();
-            
+
+            guided_posvel_control_start(alt_frame);
+
             // bumpless transfer: _pos_desired_neu_m.z = destination.z
             position_control->init_pos_terrain_U_cm(sub.rangefinder_state.inertial_alt_cm - destination.z);
             position_control->set_pos_terrain_target_U_cm(sub.rangefinder_state.rangefinder_terrain_offset_cm);
         } else {
-            // rangefinder target may have changed: _pos_desired_neu_m.z -= delta
-            position_control->init_pos_terrain_U_cm(position_control->get_pos_terrain_U_m() * 100.0 + posvel_pos_target_cm.z - destination.z);
+            guided_posvel_control_start(alt_frame);
         }
     } else {
-        if (sub.guided_mode != Guided_PosVel || posvel_frame != alt_frame) {
-            posvel_frame = alt_frame;
-            guided_posvel_control_start();
+        if (alt_frame == Location::AltFrame::ABOVE_TERRAIN) {
+            // rangefinder target may have changed: _pos_desired_neu_m.z -= delta
+            position_control->init_pos_terrain_U_cm(position_control->get_pos_terrain_U_m() * 100.0 + posvel_pos_target_cm.z - destination.z);
         }
     }
 
@@ -367,7 +368,7 @@ bool ModeGuided::guided_set_destination_posvel(const Vector3f& destination, cons
 
     // check we are in posvel control mode
     if (sub.guided_mode != Guided_PosVel) {
-        guided_posvel_control_start();
+        guided_posvel_control_start(Location::AltFrame::ABOVE_ORIGIN);
     }
 
     // set yaw state

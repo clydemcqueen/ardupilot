@@ -297,7 +297,7 @@ private:
     void guided_takeoff_run();
     void guided_pos_control_start();
     void guided_vel_control_start();
-    void guided_posvel_control_start();
+    void guided_posvel_control_start(Location::AltFrame alt_frame);
     void guided_angle_control_start();
 };
 
