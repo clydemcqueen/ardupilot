@@ -75,6 +75,7 @@
 #include "GCS_Sub.h"
 #include "mode.h"
 #include "script_button.h"
+#include <AP_SurfaceDistance/AP_SurfaceDistance.h>
 
 
 #include <AP_OpticalFlow/AP_OpticalFlow.h>     // Optical Flow library
@@ -153,17 +154,7 @@ private:
 
     AP_LeakDetector leak_detector;
 
-    struct {
-        bool enabled;
-        bool alt_healthy; // true if we can trust the altitude from the rangefinder
-        float alt;     // tilt compensated altitude from rangefinder
-        float min;     // min rangefinder distance
-        float max;     // max rangefinder distance
-        uint32_t last_healthy_ms;
-        float inertial_alt_cm;                  // inertial alt at time of last rangefinder sample
-        float rangefinder_terrain_offset_cm;    // terrain height above EKF origin
-        LowPassFilterFloat alt_filt;         // altitude filter
-    } rangefinder_state = { false, false, 0, 0, 0, 0, 0, 0 };
+    mutable AP_SurfaceDistance rangefinder_state {ROTATION_PITCH_270, 0U};
 
     // Mission library
     AP_Mission mission{

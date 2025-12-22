@@ -13,6 +13,7 @@ def build(bld):
             'AP_JSButton',
             'AP_LeakDetector',
             'AP_Motors',
+            'AP_SurfaceDistance',
             'AP_TemperatureSensor',
         ],
     )

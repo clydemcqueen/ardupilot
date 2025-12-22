@@ -31,10 +31,10 @@ void Sub::Log_Write_Control_Tuning()
     if (terrain.enabled()) {
         terrain.height_above_terrain(terr_alt, true);
     } else {
-        terr_alt = rangefinder_state.rangefinder_terrain_offset_cm * 0.01f;
+        terr_alt = rangefinder_state.terrain_u_m;
     }
 #else
-    terr_alt = rangefinder_state.rangefinder_terrain_offset_cm * 0.01f;
+    terr_alt = rangefinder_state.terrain_u_m;
 #endif
 
     struct log_Control_Tuning pkt = {
@@ -48,7 +48,7 @@ void Sub::Log_Write_Control_Tuning()
         inav_alt            : inertial_nav.get_position_z_up_cm() * 0.01f,
         baro_alt            : barometer.get_altitude(),
         desired_rangefinder_alt   : mode_surftrak.get_rangefinder_target_cm() * 0.01,
-        rangefinder_alt           : rangefinder_state.alt,
+        rangefinder_alt           : rangefinder_state.alt_m,
         terr_alt            : terr_alt,
         target_climb_rate   : (int16_t)pos_control.get_vel_target_U_cms(),
         climb_rate          : climb_rate

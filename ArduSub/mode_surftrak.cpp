@@ -74,9 +74,9 @@ bool ModeSurftrak::set_rangefinder_target_cm(float target_cm)
         sub.gcs().send_text(MAV_SEVERITY_WARNING, "wrong mode, rangefinder target not set");
     } else if (sub.inertial_nav.get_position_z_up_cm() >= sub.g.surftrak_depth) {
         sub.gcs().send_text(MAV_SEVERITY_WARNING, "descend below %f meters to set rangefinder target", sub.g.surftrak_depth * 0.01f);
-    } else if (target_cm < sub.rangefinder_state.min*100) {
+    } else if (target_cm < sub.rangefinder.min_distance_orient(ROTATION_PITCH_270)*100.0f) {
         sub.gcs().send_text(MAV_SEVERITY_WARNING, "rangefinder target below minimum, ignored");
-    } else if (target_cm > sub.rangefinder_state.max*100) {
+    } else if (target_cm > sub.rangefinder.max_distance_orient(ROTATION_PITCH_270)*100.0f) {
         sub.gcs().send_text(MAV_SEVERITY_WARNING, "rangefinder target above maximum, ignored");
     } else {
         success = true;
@@ -153,11 +153,12 @@ void ModeSurftrak::update_surface_offset()
 #if AP_RANGEFINDER_ENABLED
     if (sub.rangefinder_alt_ok()) {
         // Get the latest terrain offset
-        float rangefinder_terrain_offset_cm = sub.rangefinder_state.rangefinder_terrain_offset_cm;
+        float rangefinder_terrain_offset_cm = sub.rangefinder_state.terrain_u_m * 100.0f;
 
         // Handle the first reading or a reset
-        if (!HAS_VALID_TARGET && sub.rangefinder_state.inertial_alt_cm < sub.g.surftrak_depth) {
-            set_rangefinder_target_cm(sub.rangefinder_state.inertial_alt_cm - rangefinder_terrain_offset_cm);
+        float inertial_alt_cm = sub.rangefinder_state.ref_pos_u_m * 100.0f;
+        if (!HAS_VALID_TARGET && inertial_alt_cm < sub.g.surftrak_depth) {
+            set_rangefinder_target_cm(inertial_alt_cm - rangefinder_terrain_offset_cm);
         }
 
         if (HAS_VALID_TARGET) {
