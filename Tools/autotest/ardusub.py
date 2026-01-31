@@ -314,18 +314,26 @@ class AutoTestSub(vehicle_test_suite.TestSuite):
         self.disarm_vehicle()
         self.context_pop()
 
-    def prepare_synthetic_seafloor_test(self, sea_floor_depth, rf_target):
+    def prepare_synthetic_seafloor_test(self, sea_floor_depth, rf_target, config_index=2, damping=False):
         self.set_parameters({
             "SCR_ENABLE": 1,
             "RNGFND1_TYPE": 36,
             "RNGFND1_ORIENT": 25,
             "RNGFND1_MIN": 0.10,
             "RNGFND1_MAX": 30.00,
-            "SCR_USER1": 2,                 # Configuration bundle
+            "SCR_USER1": config_index,      # Configuration bundle
             "SCR_USER2": sea_floor_depth,   # Depth in meters
             "SCR_USER3": 101,               # Output log records
             "SCR_USER4": rf_target,         # Rangefinder target in meters
         })
+
+        if damping:
+            self.set_parameters({
+                "PSC_JERK_D": 8,
+                "PILOT_ACCEL_Z": 500,
+                "WPNAV_ACCEL_Z": 500,
+                "WPNAV_SPEED": 50,
+            })
 
         self.install_example_script_context("sub_test_synthetic_seafloor.lua")
 
@@ -437,8 +445,11 @@ class AutoTestSub(vehicle_test_suite.TestSuite):
         end_altitude = start_altitude - 10
         validation_delta = 1.5  # Largest allowed distance between sub height and desired height
 
+        # Use damping parameters to reduce vertical oscillations
+        damping = True
+
         self.context_push()
-        self.prepare_synthetic_seafloor_test(sea_floor_depth, match_distance)
+        self.prepare_synthetic_seafloor_test(sea_floor_depth, match_distance, config_index=3, damping=damping)
 
         # The synthetic seafloor has an east-west ridge south of the sub.
         # The mission contained in terrain_mission.txt instructs the sub

@@ -647,6 +647,17 @@ local function initialize_model()
         config_measurement_noise.delay_s = 0.00
     end
 
+    -- config_index = 3 has a little noise and some delay
+    if config_index == 3 then
+        config_range_model.vertices = config_ridge_plateau
+        config_measurement_noise.std_dev = .1
+        config_measurement_noise.outlier_rate_ops = .2
+        config_measurement_noise.outlier_mean = 5
+        config_measurement_noise.outlier_std_dev = 2
+        config_measurement_noise.outlier_good_sq_limit = 1
+        config_measurement_noise.delay_s = 0.3
+    end
+
     range_model = range_model_factory(config_range_model.model_bearing_N_rad,
     bottom_depth_m, config_range_model.vertices)
     measurement_noise_func = add_noise_funcfactory(config_measurement_noise)
