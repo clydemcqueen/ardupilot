@@ -12,6 +12,7 @@ enum GuidedSubMode {
     Guided_Velocity,
     Guided_PosVel,
     Guided_Angle,
+    Guided_Pos,
 };
 
 // Auto modes
@@ -277,6 +278,16 @@ public:
     float get_auto_heading();
     void guided_limit_clear();
     void set_auto_yaw_mode(autopilot_yaw_mode yaw_mode);
+    float get_rangefinder_target_cm() const override;
+
+    // enum for GUID_OPTIONS parameter
+    enum class Option : uint32_t {
+        WPNavUsedForPosControl = (1U << 6),
+    };
+
+    // returns true if the Guided-mode-option is set (see GUID_OPTIONS)
+    bool option_is_enabled(Option option) const;
+    bool use_wpnav_for_position_control() const;
 
 protected:
 
@@ -292,10 +303,12 @@ private:
     void guided_posvel_control_run();
     void guided_angle_control_run();
     void guided_takeoff_run();
+    void guided_pos_target_control_run();
     void guided_pos_control_start();
     void guided_vel_control_start();
     void guided_posvel_control_start();
     void guided_angle_control_start();
+    void guided_pos_target_control_start();
 };
 
 
