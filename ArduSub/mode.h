@@ -68,6 +68,7 @@ public:
     virtual bool allows_arming(bool from_gcs) const = 0;
     virtual bool is_autopilot() const { return false; }
     virtual bool in_guided_mode() const { return false; }
+    virtual float get_rangefinder_target_cm() const { return 0.0f; }  // TODO convert to m
 
     // return a string for this flightmode
     virtual const char *name() const = 0;
@@ -225,7 +226,7 @@ public:
 
     bool init(bool ignore_checks) override;
 
-    float get_rangefinder_target_cm() const WARN_IF_UNUSED { return rangefinder_target_cm; }
+    float get_rangefinder_target_cm() const override WARN_IF_UNUSED { return rangefinder_target_cm; }
     bool set_rangefinder_target_cm(float target_cm);
 
 protected:
@@ -324,6 +325,7 @@ public:
     void set_auto_yaw_look_at_heading(float angle_deg, float turn_rate_dps, int8_t direction, uint8_t relative_angle);
     void set_yaw_rate(float turn_rate_dps);
     bool auto_terrain_recover_start();
+    float get_rangefinder_target_cm() const override WARN_IF_UNUSED;
 
 protected:
 

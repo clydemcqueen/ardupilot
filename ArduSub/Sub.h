@@ -643,6 +643,7 @@ public:
     uint8_t get_and_clear_button_count(uint8_t index);
 
 #if AP_RANGEFINDER_ENABLED
+    // TODO support all modes
     float get_rangefinder_target_cm() const WARN_IF_UNUSED { return mode_surftrak.get_rangefinder_target_cm(); }
     bool set_rangefinder_target_cm(float new_target_cm) { return mode_surftrak.set_rangefinder_target_cm(new_target_cm); }
 #endif // AP_RANGEFINDER_ENABLED

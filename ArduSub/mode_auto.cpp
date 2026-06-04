@@ -8,7 +8,7 @@
  *  Code in this file implements the navigation commands
  */
 bool ModeAuto::init(bool ignore_checks) {
-     if (!sub.position_ok() || !sub.mission.present()) {
+    if (!sub.position_ok() || !sub.mission.present()) {
         return false;
     }
 
@@ -180,7 +180,7 @@ void ModeAuto::auto_circle_movetoedge_start(const Location &circle_center, float
         sub.circle_nav.set_radius_cm(radius_m * 100.0f);
     }
 
-     // set circle direction by using rate
+    // set circle direction by using rate
     float current_rate = sub.circle_nav.get_rate_degs();
     current_rate = ccw_turn ? -fabsf(current_rate) : fabsf(current_rate);
     sub.circle_nav.set_rate_degs(current_rate);
@@ -378,7 +378,7 @@ void ModeAuto::set_auto_yaw_look_at_heading(float angle_deg, float turn_rate_dps
 
 // sets the desired yaw rate
 void ModeAuto::set_yaw_rate(float turn_rate_dps)
-{    
+{
     // set sub to desired yaw rate
     sub.yaw_look_at_heading_slew = MIN(turn_rate_dps, AUTO_YAW_SLEW_RATE);    // deg / sec
 
@@ -433,13 +433,13 @@ bool ModeAuto::auto_terrain_recover_start()
     case RangeFinder::Status::OutOfRangeLow:
     case RangeFinder::Status::OutOfRangeHigh:
 
-        // RangeFinder::Good if just one valid sample was obtained recently, but ::rangefinder_state.alt_healthy
-        // requires several consecutive valid readings for wpnav to accept rangefinder data
+    // RangeFinder::Good if just one valid sample was obtained recently, but ::rangefinder_state.alt_healthy
+    // requires several consecutive valid readings for wpnav to accept rangefinder data
     case RangeFinder::Status::Good:
         sub.auto_mode = Auto_TerrainRecover;
         break;
 
-        // Not connected or no data
+    // Not connected or no data
     default:
         return false; // Rangefinder is not connected, or has stopped responding
     }
@@ -526,7 +526,7 @@ void ModeAuto::auto_terrain_recover_run()
         }
         break;
 
-        // Not connected, or no data
+    // Not connected, or no data
     default:
         // Terrain failsafe recovery has failed, terrain data is not available
         // and rangefinder is not connected, or has stopped responding
@@ -577,4 +577,27 @@ void ModeAuto::auto_terrain_recover_run()
 
     // call attitude controller
     attitude_control->input_euler_angle_roll_pitch_euler_rate_yaw_cd(target_roll, target_pitch, target_yaw_rate);
+}
+
+// get rangefinder target from wp_nav or circle_nav
+float ModeAuto::get_rangefinder_target_cm() const
+{
+    switch (sub.auto_mode) {
+    case Auto_WP:
+        if (sub.wp_nav.origin_and_destination_are_terrain_alt()) {
+            return -sub.wp_nav.get_wp_destination_NED_m().z * 100.0f;
+        }
+        break;
+    case Auto_CircleMoveToEdge:
+    case Auto_Circle:
+        if (sub.circle_nav.center_is_terrain_alt()) {
+            return sub.circle_nav.get_center_NEU_cm().z;
+        }
+        break;
+    case Auto_NavGuided:
+    case Auto_Loiter:
+    case Auto_TerrainRecover:
+        break;
+    }
+    return 0.0f;
 }
