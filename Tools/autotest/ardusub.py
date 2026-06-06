@@ -7,6 +7,7 @@ Parameters are in-code defaults plus default_params/sub.parm
 AP_FLAKE8_CLEAN
 '''
 
+import math
 import os
 
 from math import degrees
@@ -348,14 +349,14 @@ class AutoTestSub(vehicle_test_suite.TestSuite):
         self.disarm_vehicle()
         self.context_pop()
 
-    def prepare_synthetic_seafloor_test(self, sea_floor_depth, rf_target):
+    def prepare_synthetic_seafloor_test(self, sea_floor_depth, rf_target, config_bundle=2):
         self.set_parameters({
             "SCR_ENABLE": 1,
             "RNGFND1_TYPE": 36,
             "RNGFND1_ORIENT": 25,
             "RNGFND1_MIN": 0.10,
             "RNGFND1_MAX": 30.00,
-            "SCR_USER1": 2,                 # Configuration bundle
+            "SCR_USER1": config_bundle,     # 1: no noise; 2: some noise
             "SCR_USER2": sea_floor_depth,   # Depth in meters
             "SCR_USER3": 101,               # Output log records
             "SCR_USER4": rf_target,         # Rangefinder target in meters
@@ -487,6 +488,123 @@ class AutoTestSub(vehicle_test_suite.TestSuite):
         self.disarm_vehicle()
         self.context_pop()
         self.reboot_sitl()  # e.g. revert rangefinder configuration
+
+    def SimTerrainCircle(self):
+        """Test circle loiter turns above terrain vs relative altitude."""
+        sea_floor_depth = 50    # Depth of sea floor at location of test
+        match_distance = 15     # Desired sub distance from sea floor
+        start_altitude = -sea_floor_depth + match_distance  # -35m
+
+        self.context_push()
+        self.prepare_synthetic_seafloor_test(sea_floor_depth, match_distance, config_bundle=1)  # TODO config=2 fails
+        self.set_message_rate_hz('RANGEFINDER', 10)
+
+        circle_radius = 5
+        circle_vel = 0.5  # TODO set the speed, is this WP_SPD?
+        circle_rate = 360 / (2 * math.pi * circle_radius / circle_vel)
+        self.set_parameter("CIRCLE_RATE", circle_rate)
+
+        # Helper to watch loiter behavior
+        def watch_loiter(duration_s, expect_terrain_following):
+            tstart = self.get_sim_time_cached()
+            min_distance = 999.0
+            max_distance = -999.0
+            min_alt = 999.0
+            max_alt = -999.0
+
+            while self.get_sim_time_cached() - tstart < duration_s:
+                m_alt = self.assert_receive_message('VFR_HUD', timeout=1.0)
+                m_rf = self.assert_receive_message('RANGEFINDER', timeout=1.0)
+
+                alt = m_alt.alt
+                dist = m_rf.distance
+
+                if alt < min_alt:
+                    min_alt = alt
+                if alt > max_alt:
+                    max_alt = alt
+                if dist < min_distance:
+                    min_distance = dist
+                if dist > max_distance:
+                    max_distance = dist
+
+                self.delay_sim_time(0.2)
+
+            self.progress('Loiter stats: alt min=%.2f max=%.2f, dist min=%.2f max=%.2f' %
+                          (min_alt, max_alt, min_distance, max_distance))
+
+            if expect_terrain_following:
+                # Rangefinder distance should remain close to the target
+                if abs(min_distance - 15.0) > 1.0 or abs(max_distance - 15.0) > 1.0:
+                    raise NotAchievedException('Distance not maintained under terrain-following: min=%.2f max=%.2f' %
+                                               (min_distance, max_distance))
+                # Altitude should vary significantly as it flies over the 10m ridge (diff > 1.5m)
+                alt_diff = max_alt - min_alt
+                if alt_diff < 1.5:
+                    raise NotAchievedException('Altitude did not change enough under terrain-following: diff=%.2f' % alt_diff)
+            else:
+                # EKF altitude should remain relatively constant around -35m
+                if abs(min_alt - start_altitude) > 1.0 or abs(max_alt - start_altitude) > 1.0:
+                    raise NotAchievedException('Altitude not maintained under relative-altitude frame: min=%.2f max=%.2f' %
+                                               (min_alt, max_alt))
+                # Rangefinder distance should fluctuate significantly (diff > 1.5m)
+                dist_diff = max_distance - min_distance
+                if dist_diff < 1.5:
+                    raise NotAchievedException('Rangefinder distance did not change enough: diff=%.2f' % dist_diff)
+
+        loc = self.home_position_as_mav_location()
+        center = self.offset_location_ne(loc, -5, 0)
+        lat_center = center.lat
+        lng_center = center.lng
+
+        def do_circle(follow_terrain):
+            self.dive(start_altitude)
+
+            if follow_terrain:
+                circle_frame = mavutil.mavlink.MAV_FRAME_GLOBAL_TERRAIN_ALT_INT
+            else:
+                circle_frame = mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT_INT
+
+            mission = [
+                self.create_MISSION_ITEM_INT(
+                    mavutil.mavlink.MAV_CMD_NAV_WAYPOINT,
+                    x=int(lat_center * 1e7),
+                    y=int(lng_center * 1e7),
+                    z=start_altitude,
+                    frame=mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT_INT
+                ),
+                self.create_MISSION_ITEM_INT(
+                    mavutil.mavlink.MAV_CMD_NAV_LOITER_TURNS,
+                    p1=2,  # turns
+                    p3=circle_radius, # radius
+                    x=int(lat_center * 1e7),
+                    y=int(lng_center * 1e7),
+                    z=match_distance if follow_terrain else start_altitude,
+                    frame=circle_frame
+                )
+            ]
+            self.upload_simple_relhome_mission(mission)
+
+            self.change_mode('AUTO')
+            self.wait_current_waypoint(2)
+            # Watch the loiter behavior for 80 seconds of sim time (slightly over 1 full turn)
+            watch_loiter(80, expect_terrain_following=follow_terrain)
+            self.disarm_vehicle()
+
+        # ----------------------------------------------------
+        # Run 1: Above-Relative Frame Circle
+        # ----------------------------------------------------
+        self.progress('Starting Above-Relative Frame Circle Test')
+        do_circle(follow_terrain=False)
+
+        # ----------------------------------------------------
+        # Run 2: Above-Terrain Frame Circle
+        # ----------------------------------------------------
+        self.progress('Starting Above-Terrain Frame Circle Test')
+        do_circle(follow_terrain=True)
+
+        self.context_pop()
+        self.reboot_sitl()
 
     def ModeChanges(self, delta=0.2):
         """Check if alternating between ALTHOLD, STABILIZE, POSHOLD and SURFTRAK (mode 21) affects altitude"""
@@ -1385,6 +1503,7 @@ class AutoTestSub(vehicle_test_suite.TestSuite):
             self.Surftrak,
             self.SimTerrainSurftrak,
             self.SimTerrainMission,
+            self.SimTerrainCircle,
             self.RngfndQuality,
             self.PositionHold,
             self.ModeChanges,
