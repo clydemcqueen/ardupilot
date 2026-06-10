@@ -885,6 +885,37 @@ class AutoTestSub(vehicle_test_suite.TestSuite):
 
         self.disarm_vehicle()
 
+    def MAV_CMD_NAV_LOITER_TURNS(self):
+        """Run MAV_CMD_NAV_LOITER_TURNS inside a mission"""
+        self.set_parameter('RNGFND1_MAX', 50)
+
+        # Start at (0, 0, -5)
+        self.dive(-5, mode='ALT_HOLD')
+
+        # Circle around (0, 0, -5)
+        self.upload_simple_relhome_mission([
+            (mavutil.mavlink.MAV_CMD_NAV_LOITER_TURNS, 0, 0, -5, {
+                "frame": mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT,
+                "p1": 1,   # turns
+                "p3": 10,  # radius
+            }),
+            (mavutil.mavlink.MAV_CMD_NAV_LOITER_TURNS, 0, 0, 45, {
+                "frame": mavutil.mavlink.MAV_FRAME_GLOBAL_TERRAIN_ALT,
+                "p1": 1,   # turns
+                "p3": 10,  # radius
+            }),
+        ])
+
+        self.change_mode('AUTO')
+
+        # Wait for the mission to finish
+        while True:
+            m = self.assert_receive_message('MISSION_ITEM_REACHED', timeout=250)
+            if m.seq == 2:
+                break
+
+        self.disarm_vehicle()
+
     def TerrainMission(self):
         """Mission using surface tracking"""
 
@@ -1403,6 +1434,7 @@ class AutoTestSub(vehicle_test_suite.TestSuite):
             self.MAV_CMD_DO_CHANGE_SPEED,
             self.MAV_CMD_CONDITION_YAW,
             self.MAV_CMD_DO_REPOSITION,
+            self.MAV_CMD_NAV_LOITER_TURNS,
             self.TerrainMission,
             self.SetGlobalOrigin,
             self.BackupOrigin,
