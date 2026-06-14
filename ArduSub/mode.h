@@ -12,6 +12,7 @@ enum GuidedSubMode {
     Guided_Velocity,
     Guided_PosVel,
     Guided_Angle,
+    Guided_Pos,
 };
 
 // Auto modes
@@ -268,7 +269,6 @@ public:
     void guided_limit_set(uint32_t timeout_ms, float alt_min_cm, float alt_max_cm, float horiz_max_cm);
     bool guided_set_destination_posvel(const Vector3f& destination, const Vector3f& velocity);
     bool guided_set_destination_posvel(const Vector3f& destination, const Vector3f& velocity, bool use_yaw, float yaw_cd, bool use_yaw_rate, float yaw_rate_cds, bool relative_yaw);
-    bool guided_set_destination(const Vector3f& destination);
     bool guided_set_destination(const Location&);
     bool guided_set_destination(const Vector3f& destination, bool use_yaw, float yaw_cd, bool use_yaw_rate, float yaw_rate_cds, bool relative_yaw);
     void guided_set_velocity(const Vector3f& velocity);
@@ -277,6 +277,15 @@ public:
     float get_auto_heading();
     void guided_limit_clear();
     void set_auto_yaw_mode(autopilot_yaw_mode yaw_mode);
+
+    // enum for GUID_OPTIONS parameter
+    enum class Option : uint32_t {
+        WPNavUsedForPosControl = (1U << 6),
+    };
+
+    // returns true if the Guided-mode-option is set (see GUID_OPTIONS)
+    bool option_is_enabled(Option option) const;
+    bool use_wpnav_for_position_control() const;
 
 protected:
 
@@ -287,11 +296,13 @@ protected:
     autopilot_yaw_mode get_default_auto_yaw_mode(bool rtl) const;
 
 private:
+    void guided_wp_control_run();
     void guided_pos_control_run();
     void guided_vel_control_run();
     void guided_posvel_control_run();
     void guided_angle_control_run();
     void guided_takeoff_run();
+    void guided_wp_control_start();
     void guided_pos_control_start();
     void guided_vel_control_start();
     void guided_posvel_control_start();
