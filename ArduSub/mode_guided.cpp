@@ -48,7 +48,7 @@ bool ModeGuided::init(bool ignore_checks)
         return false;
     }
 
-    // start in position control mode
+    // start in waypoint control mode
     guided_wp_control_start();
     return true;
 }
@@ -132,9 +132,6 @@ void ModeGuided::guided_pos_control_start()
     // pilot always controls yaw
     sub.yaw_rate_only = false;
     set_auto_yaw_mode(AUTO_YAW_HOLD);
-
-    // initialise terrain alt
-    guided_is_terrain_alt = false;
 }
 
 // initialise guided mode's velocity controller
@@ -233,7 +230,7 @@ bool ModeGuided::guided_set_destination(const Location& dest_loc)
 
 #if HAL_LOGGING_ENABLED
         // log target
-        sub.Log_Write_GuidedTarget(sub.guided_mode, Vector3f(dest_loc.lat, dest_loc.lng, dest_loc.alt),Vector3f());
+        sub.Log_Write_GuidedTarget(sub.guided_mode, Vector3f(dest_loc.lat, dest_loc.lng, dest_loc.alt), Vector3f());
 #endif
 
         return true;
@@ -273,7 +270,6 @@ bool ModeGuided::guided_set_destination(const Location& dest_loc)
     guided_pos_target_cm = pos_target_ned_m * 100.0f;
     guided_pos_target_cm.z = -guided_pos_target_cm.z; // convert from NED to NEU
     guided_is_terrain_alt = is_terrain_alt;
-    update_time_ms = AP_HAL::millis();
 
 #if HAL_LOGGING_ENABLED
     // log target
@@ -307,8 +303,6 @@ bool ModeGuided::guided_set_destination(const Vector3f& destination, bool use_ya
         // set yaw state
         guided_set_yaw_state(use_yaw, yaw_cd, use_yaw_rate, yaw_rate_cds, relative_yaw);
 
-        update_time_ms = AP_HAL::millis();
-
         // no need to check return status because terrain data is not used
         sub.wp_nav.set_wp_destination_NEU_cm(destination, false);
 
@@ -332,7 +326,6 @@ bool ModeGuided::guided_set_destination(const Vector3f& destination, bool use_ya
 
     guided_pos_target_cm = destination.topostype();
     guided_is_terrain_alt = false;
-    update_time_ms = AP_HAL::millis();
 
 #if HAL_LOGGING_ENABLED
     // log target
@@ -394,7 +387,6 @@ bool ModeGuided::guided_set_destination_posvel(const Vector3f& destination, cons
 
     update_time_ms = AP_HAL::millis();
     guided_pos_target_cm = destination.topostype();
-    guided_is_terrain_alt = false;
     posvel_vel_target_cms = velocity;
 
     position_control->input_pos_vel_accel_NE_cm(guided_pos_target_cm.xy(), posvel_vel_target_cms.xy(), Vector2f());
@@ -434,7 +426,6 @@ bool ModeGuided::guided_set_destination_posvel(const Vector3f& destination, cons
     update_time_ms = AP_HAL::millis();
 
     guided_pos_target_cm = destination.topostype();
-    guided_is_terrain_alt = false;
     posvel_vel_target_cms = velocity;
 
     position_control->input_pos_vel_accel_NE_cm(guided_pos_target_cm.xy(), posvel_vel_target_cms.xy(), Vector2f());
