@@ -9,6 +9,8 @@
 
 static Vector3p posvel_pos_target_neu_cm;
 static Vector3f posvel_vel_target_neu_cms;
+static Vector3f pos_target_neu_cm;
+static bool guided_is_terrain_alt;
 static uint32_t update_time_ms;
 
 struct {
@@ -73,6 +75,11 @@ autopilot_yaw_mode ModeGuided::get_default_auto_yaw_mode(bool rtl) const
     }
 }
 
+bool ModeGuided::use_wpnav_for_position_control() const
+{
+    return (g2.guided_options.get() & (uint32_t)Option::WPNavUsedForPosControl) != 0;
+}
+
 
 // initialise guided mode's position controller
 void ModeGuided::guided_wp_control_start()
@@ -91,6 +98,26 @@ void ModeGuided::guided_wp_control_start()
 
     // no need to check return status because terrain data is not used
     sub.wp_nav.set_wp_destination_NEU_cm(stopping_point_neu_cm, false);
+
+    // initialise yaw
+    sub.yaw_rate_only = false;
+    set_auto_yaw_mode(get_default_auto_yaw_mode(false));
+}
+
+// initialise guided mode's position controller (non-WP)
+void ModeGuided::guided_pos_control_start()
+{
+    // set to position control mode
+    sub.guided_mode = Guided_Pos;
+
+    // initialize vertical maximum speeds and acceleration
+    // All limits must be positive
+    position_control->D_set_max_speed_accel_cm(sub.wp_nav.get_default_speed_down_cms(), sub.wp_nav.get_default_speed_up_cms(), sub.wp_nav.get_accel_D_cmss());
+    position_control->D_set_correction_speed_accel_cm(sub.wp_nav.get_default_speed_down_cms(), sub.wp_nav.get_default_speed_up_cms(), sub.wp_nav.get_accel_D_cmss());
+
+    // initialise position controller
+    position_control->D_init_controller();
+    position_control->NE_init_controller();
 
     // initialise yaw
     sub.yaw_rate_only = false;
@@ -178,13 +205,25 @@ bool ModeGuided::guided_set_destination(const Vector3f& destination_neu_cm)
     }
 #endif
 
-    // ensure we are in position control mode
-    if (sub.guided_mode != Guided_WP) {
-        guided_wp_control_start();
-    }
+    if (use_wpnav_for_position_control()) {
+        // ensure we are in position control mode
+        if (sub.guided_mode != Guided_WP) {
+            guided_wp_control_start();
+        }
 
-    // no need to check return status because terrain data is not used
-    sub.wp_nav.set_wp_destination_NEU_cm(destination_neu_cm, false);
+        // no need to check return status because terrain data is not used
+        sub.wp_nav.set_wp_destination_NEU_cm(destination_neu_cm, false);
+    } else {
+        // ensure we are in position control mode
+        if (sub.guided_mode != Guided_Pos) {
+            guided_pos_control_start();
+        }
+
+        position_control->init_pos_terrain_D_m(0);
+        pos_target_neu_cm = destination_neu_cm;
+        guided_is_terrain_alt = false;
+        update_time_ms = AP_HAL::millis();
+    }
 
 #if HAL_LOGGING_ENABLED
     // log target
@@ -209,16 +248,51 @@ bool ModeGuided::guided_set_destination(const Location& dest_loc)
     }
 #endif
 
-    // ensure we are in position control mode
-    if (sub.guided_mode != Guided_WP) {
-        guided_wp_control_start();
-    }
+    if (use_wpnav_for_position_control()) {
+        // ensure we are in position control mode
+        if (sub.guided_mode != Guided_WP) {
+            guided_wp_control_start();
+        }
 
-    if (!sub.wp_nav.set_wp_destination_loc(dest_loc)) {
-        // failure to set destination can only be because of missing terrain data
-        LOGGER_WRITE_ERROR(LogErrorSubsystem::NAVIGATION, LogErrorCode::FAILED_TO_SET_DESTINATION);
-        // failure is propagated to GCS with NAK
-        return false;
+        if (!sub.wp_nav.set_wp_destination_loc(dest_loc)) {
+            // failure to set destination can only be because of missing terrain data
+            LOGGER_WRITE_ERROR(LogErrorSubsystem::NAVIGATION, LogErrorCode::FAILED_TO_SET_DESTINATION);
+            // failure is propagated to GCS with NAK
+            return false;
+        }
+    } else {
+        // ensure we are in position control mode
+        if (sub.guided_mode != Guided_Pos) {
+            guided_pos_control_start();
+        }
+
+        Vector3f dest_neu_cm;
+        if (dest_loc.get_alt_frame() != Location::AltFrame::ABOVE_TERRAIN) {
+            if (!dest_loc.get_vector_from_origin_NEU(dest_neu_cm)) {
+                return false;
+            }
+            position_control->init_pos_terrain_D_m(0);
+            guided_is_terrain_alt = false;
+        } else {
+            Vector2f dest_ne_cm;
+            if (!dest_loc.get_vector_xy_from_origin_NE_cm(dest_ne_cm)) {
+                return false;
+            }
+            dest_neu_cm.x = dest_ne_cm.x;
+            dest_neu_cm.y = dest_ne_cm.y;
+            dest_neu_cm.z = dest_loc.alt;
+            
+            float terrain_alt_m;
+            if (!sub.wp_nav.get_terrain_D_m(terrain_alt_m)) {
+                return false;
+            }
+            if (!guided_is_terrain_alt) {
+                position_control->init_pos_terrain_D_m(terrain_alt_m);
+            }
+            guided_is_terrain_alt = true;
+        }
+        pos_target_neu_cm = dest_neu_cm;
+        update_time_ms = AP_HAL::millis();
     }
 
 #if HAL_LOGGING_ENABLED
@@ -244,21 +318,48 @@ bool ModeGuided::guided_set_destination(const Vector3f& destination_neu_cm, bool
     }
 #endif
 
-    // ensure we are in position control mode
-    if (sub.guided_mode != Guided_WP) {
-        guided_wp_control_start();
-    }
+    if (use_wpnav_for_position_control()) {
+        // ensure we are in position control mode
+        if (sub.guided_mode != Guided_WP) {
+            guided_wp_control_start();
+        }
 
-    // set yaw state
-    guided_set_yaw_state(use_yaw, yaw_cd, use_yaw_rate, yaw_rate_cds, relative_yaw);
+        // set yaw state
+        guided_set_yaw_state(use_yaw, yaw_cd, use_yaw_rate, yaw_rate_cds, relative_yaw);
 
-    update_time_ms = AP_HAL::millis();
+        update_time_ms = AP_HAL::millis();
 
-    if (!sub.wp_nav.set_wp_destination_NEU_cm(destination_neu_cm, is_terrain_alt)) {
-        // failure to set destination can only be because of missing terrain data
-        LOGGER_WRITE_ERROR(LogErrorSubsystem::NAVIGATION, LogErrorCode::FAILED_TO_SET_DESTINATION);
-        // failure is propagated to GCS with NAK
-        return false;
+        if (!sub.wp_nav.set_wp_destination_NEU_cm(destination_neu_cm, is_terrain_alt)) {
+            // failure to set destination can only be because of missing terrain data
+            LOGGER_WRITE_ERROR(LogErrorSubsystem::NAVIGATION, LogErrorCode::FAILED_TO_SET_DESTINATION);
+            // failure is propagated to GCS with NAK
+            return false;
+        }
+    } else {
+        // ensure we are in position control mode
+        if (sub.guided_mode != Guided_Pos) {
+            guided_pos_control_start();
+        }
+
+        // initialise terrain following if needed
+        if (is_terrain_alt) {
+            float terrain_alt_m;
+            if (!sub.wp_nav.get_terrain_D_m(terrain_alt_m)) {
+                return false;
+            }
+            if (!guided_is_terrain_alt) {
+                position_control->init_pos_terrain_D_m(terrain_alt_m);
+            }
+        } else {
+            position_control->init_pos_terrain_D_m(0.0f);
+        }
+
+        // set yaw state
+        guided_set_yaw_state(use_yaw, yaw_cd, use_yaw_rate, yaw_rate_cds, relative_yaw);
+
+        pos_target_neu_cm = destination_neu_cm;
+        guided_is_terrain_alt = is_terrain_alt;
+        update_time_ms = AP_HAL::millis();
     }
 
 #if HAL_LOGGING_ENABLED
@@ -439,8 +540,13 @@ void ModeGuided::run()
     switch (sub.guided_mode) {
 
     case Guided_WP:
-        // run position controller
+        // run waypoint controller
         guided_wp_control_run();
+        break;
+
+    case Guided_Pos:
+        // run position controller
+        guided_pos_control_run();
         break;
 
     case Guided_Velocity:
@@ -505,6 +611,97 @@ void ModeGuided::guided_wp_control_run()
     // WP_Nav has set the vertical position control targets
     // run the vertical position controller and set output throttle
     position_control->D_update_controller();
+
+    // call attitude controller
+    if (sub.auto_yaw_mode == AUTO_YAW_HOLD) {
+        // roll & pitch & yaw rate from pilot
+        attitude_control->input_euler_angle_roll_pitch_euler_rate_yaw_cd(channel_roll->get_control_in(), channel_pitch->get_control_in(), target_yaw_rate);
+    } else if (sub.auto_yaw_mode == AUTO_YAW_LOOK_AT_HEADING) {
+        // roll, pitch from pilot, yaw & yaw_rate from auto_control
+        target_yaw_rate = sub.yaw_look_at_heading_slew * 100.0;
+        attitude_control->input_euler_angle_roll_pitch_slew_yaw_cd(channel_roll->get_control_in(), channel_pitch->get_control_in(), get_auto_heading(), target_yaw_rate);
+    } else if (sub.auto_yaw_mode == AUTO_YAW_RATE) {
+        // roll, pitch from pilot, yaw_rate from auto_control
+        target_yaw_rate = sub.yaw_look_at_heading_slew * 100.0;
+        attitude_control->input_euler_angle_roll_pitch_euler_rate_yaw_cd(channel_roll->get_control_in(), channel_pitch->get_control_in(), target_yaw_rate);
+    } else {
+        // roll, pitch from pilot, yaw heading from auto_heading()
+        attitude_control->input_euler_angle_roll_pitch_yaw_cd(channel_roll->get_control_in(), channel_pitch->get_control_in(), get_auto_heading(), true);
+    }
+}
+
+// guided_pos_control_run - runs the guided position controller (non-WP)
+// called from guided_run
+void ModeGuided::guided_pos_control_run()
+{
+    // if motors not enabled set throttle to zero and exit immediately
+    if (!motors.armed()) {
+        motors.set_desired_spool_state(AP_Motors::DesiredSpoolState::GROUND_IDLE);
+        // Sub vehicles do not stabilize roll/pitch/yaw when disarmed
+        attitude_control->set_throttle_out(NEUTRAL_THROTTLE,true,g.throttle_filt);
+        attitude_control->relax_attitude_controllers();
+        // initialise position controller
+        position_control->D_init_controller();
+        position_control->NE_init_controller();
+        return;
+    }
+
+    // calculate terrain adjustments
+    float terrain_d_m = 0.0f;
+    if (guided_is_terrain_alt && !sub.wp_nav.get_terrain_D_m(terrain_d_m)) {
+        // failure to get terrain alt
+        sub.failsafe_terrain_on_event();
+        return;
+    }
+
+    // process pilot's yaw input
+    float target_yaw_rate = 0;
+    if (!sub.failsafe.pilot_input) {
+        // get pilot's desired yaw rate
+        target_yaw_rate = sub.get_pilot_desired_yaw_rate(channel_yaw->get_control_in());
+        if (!is_zero(target_yaw_rate)) {
+            set_auto_yaw_mode(AUTO_YAW_HOLD);
+        } else{
+            if (sub.yaw_rate_only){
+                set_auto_yaw_mode(AUTO_YAW_RATE);
+            } else{
+                set_auto_yaw_mode(AUTO_YAW_LOOK_AT_HEADING);
+            }
+        }
+    }
+
+    // set motors to full range
+    motors.set_desired_spool_state(AP_Motors::DesiredSpoolState::THROTTLE_UNLIMITED);
+
+    // stop rotating if no updates received within timeout_ms
+    if (AP_HAL::millis() - update_time_ms > GUIDED_POSVEL_TIMEOUT_MS) {
+        if ((sub.auto_yaw_mode == AUTO_YAW_RATE) || (sub.auto_yaw_mode == AUTO_YAW_LOOK_AT_HEADING)) {
+            set_auto_yaw_mode(AUTO_YAW_HOLD);
+        }
+    }
+
+    float terrain_margin_m = 0.0;
+    if (guided_is_terrain_alt) {
+        terrain_margin_m = MIN(sub.wp_nav.get_terrain_margin_m(), 0.5 * fabsF(pos_target_neu_cm.z) * 0.01f);
+    }
+    
+    Vector3p pos_target_ned_m(pos_target_neu_cm.x * 0.01f, pos_target_neu_cm.y * 0.01f, -pos_target_neu_cm.z * 0.01f);
+    position_control->input_pos_NED_m(pos_target_ned_m, terrain_d_m, terrain_margin_m);
+
+    // run position controllers
+    position_control->NE_update_controller();
+    position_control->D_update_controller();
+
+    // TODO use something like translate_wpnav_rp
+    int32_t lateral = position_control->get_roll_cd();
+    int32_t forward = -position_control->get_pitch_cd(); // output is reversed
+
+    const float angle_max_cd = attitude_control->lean_angle_max_cd();
+    lateral = constrain_int16(lateral, -angle_max_cd, angle_max_cd);
+    forward = constrain_int16(forward, -angle_max_cd, angle_max_cd);
+
+    motors.set_lateral((float)lateral / angle_max_cd);
+    motors.set_forward((float)forward / angle_max_cd);
 
     // call attitude controller
     if (sub.auto_yaw_mode == AUTO_YAW_HOLD) {

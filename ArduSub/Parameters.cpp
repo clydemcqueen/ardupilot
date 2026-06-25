@@ -768,6 +768,13 @@ const AP_Param::GroupInfo ParametersG2::var_info[] = {
     // @Path: ../ArduSub/actuators.cpp
     AP_SUBGROUPINFO(actuators, "ACTUATOR", 23, ParametersG2, Actuators),
 
+    // @Param: GUID_OPTIONS
+    // @DisplayName: Guided mode options
+    // @Description: Options that can be applied to change guided mode behaviour
+    // @Bitmask: 6:Waypoint navigation used for position targets
+    // @User: Advanced
+    AP_GROUPINFO("GUID_OPTIONS", 25, ParametersG2, guided_options, (float)ModeGuided::Option::WPNavUsedForPosControl),
+
     // Hidden param used as a flag for param conversion
     // This allows one time conversion while allowing user to flash between versions with and without converted params
     AP_GROUPINFO_FLAGS("PARM_FMT_VER", 24, ParametersG2, param_conversion_increment, 0, AP_PARAM_FLAG_HIDDEN),

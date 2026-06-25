@@ -402,6 +402,7 @@ public:
 
     AP_Float surface_nobaro_thrust;
     Actuators actuators;
+    AP_Int32 guided_options;
 
     // Used to track parameter conversions
     AP_Int8 param_conversion_increment;

@@ -12,6 +12,7 @@ enum GuidedSubMode {
     Guided_Velocity,
     Guided_PosVel,
     Guided_Angle,
+    Guided_Pos,
 };
 
 // Auto modes
@@ -261,6 +262,12 @@ public:
     bool allows_arming(bool from_gcs) const override { return true; }
     bool is_autopilot() const override { return true; }
     bool in_guided_mode() const override { return true; }
+
+    enum class Option {
+        WPNavUsedForPosControl   = (1 << 6),
+    };
+    bool use_wpnav_for_position_control() const;
+
     bool guided_limit_check();
     void guided_limit_init_time_and_pos();
     void guided_set_angle(const Quaternion &q, float climb_rate_cms, bool use_yaw_rate, float yaw_rate_rads);
@@ -288,11 +295,13 @@ protected:
 
 private:
     void guided_wp_control_run();
+    void guided_pos_control_run();
     void guided_vel_control_run();
     void guided_posvel_control_run();
     void guided_angle_control_run();
     void guided_takeoff_run();
     void guided_wp_control_start();
+    void guided_pos_control_start();
     void guided_vel_control_start();
     void guided_posvel_control_start();
     void guided_angle_control_start();
