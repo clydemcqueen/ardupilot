@@ -465,6 +465,20 @@ void Sub::rc_loop()
 }
 #endif
 
+#if AP_SCRIPTING_ENABLED
+// set target position (for use by scripting)
+bool Sub::set_target_pos_NED(const Vector3f& target_pos_ned_m, bool use_yaw, float yaw_deg, bool use_yaw_rate, float yaw_rate_degs, bool yaw_relative, bool is_terrain_alt)
+{
+    // exit if vehicle is not in Guided mode or Auto-Guided mode
+    if (!flightmode->in_guided_mode()) {
+        return false;
+    }
+
+    const Vector3f destination_neu_cm{target_pos_ned_m.x * 100.0f, target_pos_ned_m.y * 100.0f, target_pos_ned_m.z * -100.0f};
+    return mode_guided.guided_set_destination(destination_neu_cm, use_yaw, radians(yaw_deg), use_yaw_rate, radians(yaw_rate_degs), yaw_relative, is_terrain_alt);
+}
+#endif
+
 Sub *Sub::_singleton = nullptr;
 
 Sub sub;

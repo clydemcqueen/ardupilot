@@ -270,7 +270,7 @@ public:
     bool guided_set_destination_posvel(const Vector3f& destination_neu_cm, const Vector3f& velocity_neu_cms, bool use_yaw, float yaw_cd, bool use_yaw_rate, float yaw_rate_cds, bool relative_yaw);
     bool guided_set_destination(const Vector3f& destination_neu_cm);
     bool guided_set_destination(const Location&);
-    bool guided_set_destination(const Vector3f& destination_neu_cm, bool use_yaw, float yaw_cd, bool use_yaw_rate, float yaw_rate_cds, bool relative_yaw);
+    bool guided_set_destination(const Vector3f& destination_neu_cm, bool use_yaw, float yaw_cd, bool use_yaw_rate, float yaw_rate_cds, bool relative_yaw, bool is_terrain_alt);
     void guided_set_velocity(const Vector3f& velocity_neu_cms);
     void guided_set_velocity(const Vector3f& velocity_neu_cms, bool use_yaw, float yaw_cd, bool use_yaw_rate, float yaw_rate_cds, bool relative_yaw);
     void guided_set_yaw_state(bool use_yaw, float yaw_cd, bool use_yaw_rate, float yaw_rate_cds, bool relative_angle);
