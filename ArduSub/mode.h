@@ -287,12 +287,12 @@ protected:
     autopilot_yaw_mode get_default_auto_yaw_mode(bool rtl) const;
 
 private:
-    void guided_pos_control_run();
+    void guided_wp_control_run();
     void guided_vel_control_run();
     void guided_posvel_control_run();
     void guided_angle_control_run();
     void guided_takeoff_run();
-    void guided_pos_control_start();
+    void guided_wp_control_start();
     void guided_vel_control_start();
     void guided_posvel_control_start();
     void guided_angle_control_start();

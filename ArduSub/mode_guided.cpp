@@ -36,7 +36,7 @@ bool ModeGuided::init(bool ignore_checks)
     }
 
     // start in position control mode
-    guided_pos_control_start();
+    guided_wp_control_start();
     return true;
 }
 
@@ -75,7 +75,7 @@ autopilot_yaw_mode ModeGuided::get_default_auto_yaw_mode(bool rtl) const
 
 
 // initialise guided mode's position controller
-void ModeGuided::guided_pos_control_start()
+void ModeGuided::guided_wp_control_start()
 {
     // set to position control mode
     sub.guided_mode = Guided_WP;
@@ -180,7 +180,7 @@ bool ModeGuided::guided_set_destination(const Vector3f& destination_neu_cm)
 
     // ensure we are in position control mode
     if (sub.guided_mode != Guided_WP) {
-        guided_pos_control_start();
+        guided_wp_control_start();
     }
 
     // no need to check return status because terrain data is not used
@@ -211,7 +211,7 @@ bool ModeGuided::guided_set_destination(const Location& dest_loc)
 
     // ensure we are in position control mode
     if (sub.guided_mode != Guided_WP) {
-        guided_pos_control_start();
+        guided_wp_control_start();
     }
 
     if (!sub.wp_nav.set_wp_destination_loc(dest_loc)) {
@@ -246,7 +246,7 @@ bool ModeGuided::guided_set_destination(const Vector3f& destination_neu_cm, bool
 
     // ensure we are in position control mode
     if (sub.guided_mode != Guided_WP) {
-        guided_pos_control_start();
+        guided_wp_control_start();
     }
 
     // set yaw state
@@ -440,7 +440,7 @@ void ModeGuided::run()
 
     case Guided_WP:
         // run position controller
-        guided_pos_control_run();
+        guided_wp_control_run();
         break;
 
     case Guided_Velocity:
@@ -460,9 +460,8 @@ void ModeGuided::run()
     }
 }
 
-// guided_pos_control_run - runs the guided position controller
-// called from guided_run
-void ModeGuided::guided_pos_control_run()
+// guided_wp_control_run - runs the guided waypoint controller
+void ModeGuided::guided_wp_control_run()
 {
     // if motors not enabled set throttle to zero and exit immediately
     if (!motors.armed()) {
