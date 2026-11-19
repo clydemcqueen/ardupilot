@@ -18,6 +18,8 @@
 ---@diagnostic disable: cast-local-type
 
 local UPDATE_PERIOD_MS = 50
+local sensor_update_period_ms = UPDATE_PERIOD_MS
+local last_sensor_update_ms = 0
 
 local TEST_ID_STR = "STSS"
 local SCRIPT_NAME = "sub_test_synthetic_seafloor.lua"
@@ -330,6 +332,8 @@ end
 ---@field outlier_std_dev number        -- Stardard deviation of outliers distribution
 ---@field delay_s number                -- Delay between measurement request and measurement return (0 => no delay)
 ---@field callback_interval_ms number   -- Delay between calls of the add noise function
+---@field periodic_spike_every_n number|nil -- Inject deterministic spike every N sensor pings
+---@field periodic_spike_m number|nil   -- Deterministic spike amplitude in meters
 
 -- This factory creates a function that will take a measurement m and add noise to it
 ---@param config NoiseModelConfig
@@ -432,6 +436,20 @@ local function add_noise_funcfactory(config)
         return delay_func
     end
 
+    local function periodic_spike_funcfactory(every_n, spike_m, pre_func)
+        local count = 0
+        return function(m)
+            if pre_func then
+                m = pre_func(m)
+            end
+            count = count + 1
+            if count % every_n == 0 then
+                return m + spike_m
+            end
+            return m
+        end
+    end
+
     local func
 
     -- Check for adding gaussian noise to measrement
@@ -443,6 +461,11 @@ local function add_noise_funcfactory(config)
     if config.outlier_rate_ops ~= 0 then
         func = noise_funcfactory(config.outlier_mean, config.outlier_std_dev,
             config.outlier_rate_ops, config.callback_interval_ms, func)
+    end
+
+    -- Check for deterministic periodic multipath spikes
+    if config.periodic_spike_every_n and config.periodic_spike_every_n > 0 then
+        func = periodic_spike_funcfactory(config.periodic_spike_every_n, config.periodic_spike_m or 0.0, func)
     end
 
     -- Check for delaying the measurement
@@ -544,24 +567,42 @@ local signal_quality_func
 
 
 local function range_finder_driver(sub_loc)
-    local rf_state = RangeFinder_State()
+    local now_ms = millis():toint()
 
-    -- The full state udata must be initialized.
-    rf_state:last_reading(millis():toint())
-    rf_state:voltage(0)
-
-    -- If no location, then return no data
+    -- If no location, then return no data on sensor update ticks
     if not sub_loc then
-        rf_state:status(RNGFND_STATUS_NO_DATA)
-        rf_state:range_valid_count(0)
-        rf_state:distance(0)
-        rf_state:signal_quality(SIGNAL_QUALITY_MIN)
-        rngfnd_backend:handle_script_msg(rf_state) -- state as arg
+        if sensor_update_period_ms <= UPDATE_PERIOD_MS or now_ms - last_sensor_update_ms >= sensor_update_period_ms then
+            last_sensor_update_ms = now_ms
+            local rf_state = RangeFinder_State()
+            rf_state:last_reading(now_ms)
+            rf_state:voltage(0)
+            rf_state:status(RNGFND_STATUS_NO_DATA)
+            rf_state:range_valid_count(0)
+            rf_state:distance(0)
+            rf_state:signal_quality(SIGNAL_QUALITY_MIN)
+            rngfnd_backend:handle_script_msg(rf_state) -- state as arg
+        end
         return
     end
 
-    -- Generate a simulated range measurement
+    -- Compute true range every 50 ms so #TR# ground-truth telemetry stays timely
     local true_range_m = range_model:get_range(sub_loc)
+    if enable_gcs_send_range then
+        send_quick("#TR#", string.format("%7.2f", true_range_m))
+    end
+
+    if sensor_update_period_ms > UPDATE_PERIOD_MS and (now_ms - last_sensor_update_ms < sensor_update_period_ms) then
+        return
+    end
+    last_sensor_update_ms = now_ms
+
+    local rf_state = RangeFinder_State()
+
+    -- The full state udata must be initialized.
+    rf_state:last_reading(now_ms)
+    rf_state:voltage(0)
+
+    -- Generate a simulated range measurement
     local range_m = measurement_noise_func(true_range_m)
     local signal_quality = signal_quality_func(range_m, true_range_m)
 
@@ -582,9 +623,6 @@ local function range_finder_driver(sub_loc)
     if enable_gcs_send_data then
         send("RNGFND", string.format("true range %.2f, range %.2f, sub_z %.2f, bottom_z %.2f",
             true_range_m, range_m, range_model.sub_z_m, range_model.bottom_z_m))
-    end
-    if enable_gcs_send_range then
-        send_quick("#TR#", string.format("%7.2f", true_range_m))
     end
 end
 
@@ -624,6 +662,9 @@ local function initialize_model()
         vertices = config_simple_ridge,
     }
 
+    sensor_update_period_ms = UPDATE_PERIOD_MS
+    last_sensor_update_ms = 0
+
     local config_measurement_noise = {
         mean = 0.0,
         std_dev = 0.0,
@@ -631,12 +672,15 @@ local function initialize_model()
         outlier_mean = 0.0,
         outlier_std_dev = 0.0,
         outlier_good_sq_limit = 0.0,
+        periodic_spike_every_n = 0,
+        periodic_spike_m = 0.0,
         delay_s = 0.0,
-        callback_interval_ms = UPDATE_PERIOD_MS,
+        callback_interval_ms = sensor_update_period_ms,
     }
 
     -- config_index = 1 is default with no noise
     -- config_index = 2 has a little noise
+    -- config_index = 3 models a Ping1D/Ping2 sonar (5 Hz, 600 ms lag, periodic multipath spikes)
     if config_index == 2 then
         config_range_model.vertices = config_ridge_plateau
         config_measurement_noise.std_dev = .1
@@ -645,6 +689,13 @@ local function initialize_model()
         config_measurement_noise.outlier_std_dev = 2
         config_measurement_noise.outlier_good_sq_limit = 1
         config_measurement_noise.delay_s = 0.00
+    elseif config_index == 3 then
+        sensor_update_period_ms = 200
+        config_measurement_noise.callback_interval_ms = sensor_update_period_ms
+        config_measurement_noise.delay_s = 0.6
+        config_measurement_noise.periodic_spike_every_n = 25
+        config_measurement_noise.periodic_spike_m = 3.0
+        config_measurement_noise.outlier_good_sq_limit = 100.0
     end
 
     range_model = range_model_factory(config_range_model.model_bearing_N_rad,
