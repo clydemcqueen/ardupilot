@@ -24,6 +24,7 @@
 #include <AP_Param/AP_Param.h>
 #include <AP_NavEKF/AP_Nav_Common.h>
 #include <AP_NavEKF/AP_NavEKF_Source.h>
+#include <AP_NavEKF/AP_AglKalmanFilter.h>
 
 class NavEKF3_core;
 class EKFGSF_yaw;
@@ -374,6 +375,17 @@ public:
     // Do a reset and bootstrap alignment of all EKF cores
     // return true if successful for all cores
     bool InitialiseFilterBootstrap();
+
+    // return configuration parameters for 2-state AGL Kalman filter
+    AP_AglKalmanFilter::Config get_agl_kf_config(void) const {
+        return AP_AglKalmanFilter::Config {
+            acc_noise      : (ftype)_accNoise.get(),
+            terr_grad_max  : (ftype)_terrGradMax.get(),
+            rng_noise      : (ftype)_rngNoise.get(),
+            rng_innov_gate : (ftype)_rngInnovGate.get(),
+            cos_tilt_min   : (ftype)DCM33FlowMin,
+        };
+    }
 
 private:
     class AP_DAL &dal;
