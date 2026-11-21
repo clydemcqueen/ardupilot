@@ -772,6 +772,15 @@ const AP_Param::GroupInfo ParametersG2::var_info[] = {
     // This allows one time conversion while allowing user to flash between versions with and without converted params
     AP_GROUPINFO_FLAGS("PARM_FMT_VER", 24, ParametersG2, param_conversion_increment, 0, AP_PARAM_FLAG_HIDDEN),
 
+#if AP_RANGEFINDER_ENABLED
+    // @Param: SURFTRAK_FILT
+    // @DisplayName: SURFTRAK rangefinder filter type
+    // @Description: Filter applied to downward rangefinder measurements for SURFTRAK and terrain tracking
+    // @Values: 0:LowPassFilter, 1:KalmanFilter
+    // @User: Standard
+    AP_GROUPINFO("SURFTRAK_FILT", 25, ParametersG2, surftrak_filt, 0),
+#endif
+
     AP_GROUPEND
 };
 

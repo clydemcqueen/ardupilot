@@ -6,6 +6,9 @@ void Sub::read_inertia()
     // inertial altitude estimates
     sub.pos_control.update_estimates();
 
+    // propagate rangefinder AGL Kalman filter at IMU rate
+    update_rangefinder_agl_kf();
+
     // pull position from ahrs
     Location loc;
     // AHRS provides a best-guess in case of failure

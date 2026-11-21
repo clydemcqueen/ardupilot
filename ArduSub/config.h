@@ -81,6 +81,14 @@
 # define SURFTRAK_DEPTH_DEFAULT -50.0f     // surftrak will try to keep the sub below this depth
 #endif
 
+#ifndef RANGEFINDER_AGL_KF_DT_S
+# define RANGEFINDER_AGL_KF_DT_S         0.01f  // AGL KF prediction step interval (s)
+#endif
+
+#ifndef RANGEFINDER_AGL_KF_NOAID_SPD_MS
+# define RANGEFINDER_AGL_KF_NOAID_SPD_MS 0.5f   // assumed horizontal speed (m/s) when EKF has no horizontal aiding (AID_NONE)
+#endif
+
 // Avoidance (relies on Proximity and Fence)
 #ifndef AVOIDANCE_ENABLED
 # define AVOIDANCE_ENABLED 0

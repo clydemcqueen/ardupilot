@@ -405,6 +405,10 @@ public:
 
     // Used to track parameter conversions
     AP_Int8 param_conversion_increment;
+
+#if AP_RANGEFINDER_ENABLED
+    AP_Int8 surftrak_filt;
+#endif
 };
 
 extern const AP_Param::Info        var_info[];

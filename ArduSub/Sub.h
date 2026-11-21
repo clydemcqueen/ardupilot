@@ -76,6 +76,9 @@
 
 
 #include <AP_OpticalFlow/AP_OpticalFlow.h>     // Optical Flow library
+#if AP_RANGEFINDER_ENABLED
+#include <AP_NavEKF/AP_AglKalmanFilter.h>
+#endif
 
 // libraries which are dependent on #defines in defines.h and/or config.h
 #if RCMAP_ENABLED
@@ -145,10 +148,16 @@ private:
         float min;     // min rangefinder distance
         float max;     // max rangefinder distance
         uint32_t last_healthy_ms;
+        uint32_t last_reading_ms;
         float inertial_alt_cm;                  // inertial alt at time of last rangefinder sample
         float rangefinder_terrain_offset_cm;    // terrain height above EKF origin
         LowPassFilterFloat alt_filt;         // altitude filter
-    } rangefinder_state = { false, false, 0, 0, 0, 0, 0, 0 };
+#if AP_RANGEFINDER_ENABLED
+        AP_AglKalmanFilter agl_kf;
+        float agl_accum_dv_z;
+        float agl_accum_dt;
+#endif
+    } rangefinder_state;
 
     // Mission library
     AP_Mission mission{
@@ -413,6 +422,9 @@ private:
     void Log_Write_Data(LogDataID id, uint16_t value);
     void Log_Write_Data(LogDataID id, float value);
     void Log_Write_GuidedTarget(uint8_t target_type, const Vector3f& pos_target_neu_cm, const Vector3f& vel_target_neu_cms, const Vector3f& acc_target_neu_cmss);
+#if AP_RANGEFINDER_ENABLED
+    void Log_Write_SAKF();
+#endif
     void Log_Write_Vehicle_Startup_Messages();
 #endif
     void load_parameters(void) override;
@@ -494,6 +506,7 @@ private:
     void read_barometer(void);
     void init_rangefinder(void);
     void read_rangefinder(void);
+    void update_rangefinder_agl_kf(void);
     void terrain_update();
     void terrain_logging();
     void init_ardupilot() override;

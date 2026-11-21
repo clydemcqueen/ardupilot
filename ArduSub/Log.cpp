@@ -207,6 +207,32 @@ void Sub::Log_Write_GuidedTarget(uint8_t target_type, const Vector3f& pos_target
     logger.WriteBlock(&pkt, sizeof(pkt));
 }
 
+#if AP_RANGEFINDER_ENABLED
+struct PACKED log_SAKF {
+    LOG_PACKET_HEADER;
+    uint64_t time_us;
+    float hAgl;
+    float vAgl;
+    float hAglStd;
+    float vAglStd;
+    uint8_t valid;
+};
+
+void Sub::Log_Write_SAKF()
+{
+    const struct log_SAKF pkt {
+        LOG_PACKET_HEADER_INIT(LOG_SURFTRAK_AGL_KF_MSG),
+        time_us : AP_HAL::micros64(),
+        hAgl    : (float)rangefinder_state.agl_kf.hgt,
+        vAgl    : (float)rangefinder_state.agl_kf.vel,
+        hAglStd : (float)sqrtF(rangefinder_state.agl_kf.cov[0][0]),
+        vAglStd : (float)sqrtF(rangefinder_state.agl_kf.cov[1][1]),
+        valid   : (uint8_t)rangefinder_state.agl_kf.valid
+    };
+    logger.WriteBlock(&pkt, sizeof(pkt));
+}
+#endif
+
 // @LoggerMessage: CTUN
 // @Description: Control Tuning information
 // @Field: TimeUS: Time since system startup
@@ -267,6 +293,15 @@ void Sub::Log_Write_GuidedTarget(uint8_t target_type, const Vector3f& pos_target
 // @Field: aY: Target acceleration, Y-Axis
 // @Field: aZ: Target acceleration, Z-Axis
 
+// @LoggerMessage: SAKF
+// @Description: Sub SURFTRAK 2-state IMU-aided AGL Kalman Filter state
+// @Field: TimeUS: Time since system startup
+// @Field: HAgl: AGL height estimate
+// @Field: VAgl: AGL vertical velocity estimate (+ve = climbing)
+// @Field: HAglStd: AGL height estimate 1-sigma uncertainty
+// @Field: VAglStd: AGL vertical velocity estimate 1-sigma uncertainty
+// @Field: Valid: 1 when rangefinder fused within timeout
+
 // type and unit information can be found in
 // libraries/AP_Logger/Logstructure.h; search for "log_Units" for
 // units and "Format characters" for field type information
@@ -286,6 +321,10 @@ const struct LogStructure Sub::log_structure[] = {
       "DFLT",  "QBf",         "TimeUS,Id,Value", "s--", "F--" },
     { LOG_GUIDEDTARGET_MSG, sizeof(log_GuidedTarget),
       "GUIP",  "QBfffffffff",    "TimeUS,Type,pX,pY,pZ,vX,vY,vZ,aX,aY,aZ", "s-mmmnnnooo", "F-000000000" },
+#if AP_RANGEFINDER_ENABLED
+    { LOG_SURFTRAK_AGL_KF_MSG, sizeof(log_SAKF),
+      "SAKF",  "QffffB",         "TimeUS,HAgl,VAgl,HAglStd,VAglStd,Valid", "smnmn-", "F-----" },
+#endif
 };
 
 uint8_t Sub::get_num_log_structures() const

@@ -360,6 +360,11 @@ void Sub::update_altitude()
 #if HAL_LOGGING_ENABLED
     if (should_log(MASK_LOG_CTUN)) {
         Log_Write_Control_Tuning();
+#if AP_RANGEFINDER_ENABLED
+        if (g2.surftrak_filt == 1) {
+            Log_Write_SAKF();
+        }
+#endif
 #if AP_INERTIALSENSOR_HARMONICNOTCH_ENABLED
         AP::ins().write_notch_log_messages();
 #endif
