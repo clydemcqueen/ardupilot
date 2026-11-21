@@ -43,6 +43,8 @@
 #define CHECK_SCALER_DEFAULT    100
 #define FLOW_USE_DEFAULT        1
 #define WIND_P_NSE_DEFAULT      0.2
+#define RNG_M_NSE_DEFAULT       0.5f
+#define TERR_GRAD_DEFAULT       0.1f
 
 #elif APM_BUILD_TYPE(APM_BUILD_Rover)
 // rover defaults
@@ -69,6 +71,8 @@
 #define CHECK_SCALER_DEFAULT    100
 #define FLOW_USE_DEFAULT        1
 #define WIND_P_NSE_DEFAULT      0.1
+#define RNG_M_NSE_DEFAULT       0.5f
+#define TERR_GRAD_DEFAULT       0.1f
 
 #elif APM_BUILD_TYPE(APM_BUILD_ArduPlane)
 // plane defaults
@@ -95,6 +99,8 @@
 #define CHECK_SCALER_DEFAULT    150
 #define FLOW_USE_DEFAULT        2
 #define WIND_P_NSE_DEFAULT      0.1
+#define RNG_M_NSE_DEFAULT       0.5f
+#define TERR_GRAD_DEFAULT       0.1f
 
 #elif APM_BUILD_TYPE(APM_BUILD_ArduSub)
 // Sub defaults
@@ -121,6 +127,8 @@
 #define CHECK_SCALER_DEFAULT    100
 #define FLOW_USE_DEFAULT        1
 #define WIND_P_NSE_DEFAULT      0.1
+#define RNG_M_NSE_DEFAULT       0.25f
+#define TERR_GRAD_DEFAULT       0.35f
 
 #else
 // build type not specified, use copter defaults
@@ -147,6 +155,8 @@
 #define CHECK_SCALER_DEFAULT    100
 #define FLOW_USE_DEFAULT        1
 #define WIND_P_NSE_DEFAULT      0.1
+#define RNG_M_NSE_DEFAULT       0.5f
+#define TERR_GRAD_DEFAULT       0.1f
 
 #endif // APM_BUILD_COPTER_OR_HELI || APM_BUILD_TYPE(APM_BUILD_Replay)
 
@@ -316,7 +326,7 @@ const AP_Param::GroupInfo NavEKF3::var_info[] = {
     // @Increment: 0.1
     // @User: Advanced
     // @Units: m
-    AP_GROUPINFO("RNG_M_NSE", 18, NavEKF3, _rngNoise, 0.5f),
+    AP_GROUPINFO("RNG_M_NSE", 18, NavEKF3, _rngNoise, RNG_M_NSE_DEFAULT),
 
     // @Param: RNG_I_GATE
     // @DisplayName: Range finder measurement gate size
@@ -516,10 +526,10 @@ const AP_Param::GroupInfo NavEKF3::var_info[] = {
     // @Param: TERR_GRAD
     // @DisplayName: Maximum terrain gradient
     // @Description: Specifies the maximum gradient of the terrain below the vehicle when it is using range finder as a height reference
-    // @Range: 0 0.2
+    // @Range: 0 1.0
     // @Increment: 0.01
     // @User: Advanced
-    AP_GROUPINFO("TERR_GRAD", 43, NavEKF3, _terrGradMax, 0.1f),
+    AP_GROUPINFO("TERR_GRAD", 43, NavEKF3, _terrGradMax, TERR_GRAD_DEFAULT),
 
     // @Param: BCN_M_NSE
     // @DisplayName: Range beacon measurement noise (m)
