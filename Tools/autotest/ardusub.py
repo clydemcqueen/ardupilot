@@ -412,17 +412,16 @@ class AutoTestSub(vehicle_test_suite.TestSuite):
                     self.progress(f'Distance hold during mission done. Max delta:{max_delta:.2f}m')
                     return
 
-    def SimTerrainSurftrak(self):
+    def _sim_terrain_surftrak(self, config_bundle=1, validation_delta=1.5):
         """Move at a constant height above synthetic sea floor"""
 
         sea_floor_depth = 50    # Depth of sea floor at location of test
         match_distance = 15     # Desired sub distance from sea floor
         start_altitude = -sea_floor_depth+match_distance
         end_altitude = start_altitude
-        validation_delta = 1.5  # Largest allowed distance between sub height and desired height
 
         # Load the synthetic seafloor, this will push a context and reboot
-        self.prepare_synthetic_seafloor_test(sea_floor_depth, match_distance)
+        self.prepare_synthetic_seafloor_test(sea_floor_depth, match_distance, config_bundle=config_bundle)
 
         # Dive to match_distance off the bottom in preparation for the mission
         self.dive(start_altitude)
@@ -455,6 +454,15 @@ class AutoTestSub(vehicle_test_suite.TestSuite):
 
         # Disarm before context pop
         self.disarm_vehicle()
+
+    def SimTerrainSurftrak(self):
+        """Move at a constant height above synthetic sea floor"""
+        self._sim_terrain_surftrak(config_bundle=1, validation_delta=1.5)
+
+    def SimTerrainSurftrakPing(self):
+        """Move at a constant height above synthetic sea floor with a simulated Ping sonar"""
+        self.progress(f"SURFTRAK_FILT={int(self.get_parameter('SURFTRAK_FILT'))}")
+        self._sim_terrain_surftrak(config_bundle=3, validation_delta=1.65)
 
     def fly_mission_NAV_LOITER_TURNS(self, ccw=False, radius_m=15, depth_m=10):
         '''run a mission containing a single LOITER_TURNS item, checking the
@@ -1884,6 +1892,7 @@ class AutoTestSub(vehicle_test_suite.TestSuite):
             self.AltitudeHold,
             self.Surftrak,
             self.SimTerrainSurftrak,
+            self.SimTerrainSurftrakPing,
             self.SimTerrainMission,
             self.RngfndQuality,
             self.PositionHold,
